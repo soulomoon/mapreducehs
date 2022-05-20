@@ -1,0 +1,7 @@
+{
+    "cSpell.words": [
+        "tempdata"
+    ],
+    "jupyter.jupyterServerType": "local",
+    "nixEnvSelector.nixFile": "${workspaceRoot}/shell.nix"
+}
