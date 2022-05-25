@@ -18,8 +18,8 @@ import Core.Partition
 import Control.Monad.State
 
 -- should increase id before send
-evalOne :: (PartitionConstraint m) => EvalPair -> m ()
-evalOne (EvalPair mr d) = incrTaskId >> sendDataToPartitions (mr d)
+evalOne :: forall t m. (PartitionConstraint t m) => EvalPair -> m ()
+evalOne (EvalPair mr d) = incrTaskId >> sendDataToPartitions @t (mr d)
 
 runCtx:: Monad m => Context -> (StateT Context m) a -> m a
 runCtx context =  (`evalStateT` context)

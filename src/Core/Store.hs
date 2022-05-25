@@ -2,6 +2,12 @@
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE DataKinds #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 
 module Core.Store where
 
@@ -14,13 +20,13 @@ import System.IO
 
 -- handles IO
 
-data StoreType = MemoryStore | FileStore
+data StoreType = MemoryStore | LocalFileStore
 
-class (MonadContext m, MonadIO m) => MonadStore m where
+class (MonadContext m, MonadIO m) => MonadStore (t :: StoreType) m where
   findAllTaskFiles :: m [String] -- | a lift of file names
   findAllTaskFiles = do
     tId <- taskId
-    findTaskFileWith ("-" ++ show tId)
+    findTaskFileWith @t ("-" ++ show tId)
   findTaskFiles ::
     -- | a lift of file names
     m [String]
@@ -28,7 +34,7 @@ class (MonadContext m, MonadIO m) => MonadStore m where
     wId <- partitionId
     tId <- taskId
     liftIO $ putStrLn $ "-" ++ show wId ++ "-" ++ show tId
-    findTaskFileWith ("-" ++ show wId ++ "-" ++ show tId)
+    findTaskFileWith @t ("-" ++ show wId ++ "-" ++ show tId)
 
   mkFilePath :: (Show a) => a -> m String
   mkFilePath pid = do
@@ -42,7 +48,7 @@ class (MonadContext m, MonadIO m) => MonadStore m where
   getDataFromFiles :: (Serializable2 k v) => m [String] -> m [(k, v)]
   getStringsFromFiles :: m [String] -> m [String]
 -- local file store
-instance (MonadContext m, MonadIO m) => MonadStore m where
+instance (MonadContext m, MonadIO m) => MonadStore 'LocalFileStore m where
   findTaskFileWith pat = do
     dir <- dirName
     liftIO $ map ((dir ++ "/") ++) . filter (isSuffixOf pat) <$> listDirectory dir

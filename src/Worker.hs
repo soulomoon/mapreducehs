@@ -1,5 +1,9 @@
 {-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MonoLocalBinds #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE DataKinds #-}
 
 -- Echo client program
 module Main where
@@ -9,12 +13,9 @@ import Network.Socket
 import Network.Socket.ByteString.Lazy (recv, sendAll)
 import Data.Binary (decode, encode)
 import Core.Context
-import Control.Monad (when, forM_)
 import Core.Partition (PartitionConstraint, getDataFromPartition)
-import Core.MapReduceC (indexMR, MapReduce (MrOut, (:>)), ToM (toM))
+import Core.MapReduceC 
 import Core.Serialize (Serializable2)
-import Control.Monad.IO.Class (liftIO)
-import Data.List
 import Impl
 import Core.Store
 import Control.Monad.Cont
@@ -25,13 +26,13 @@ main = runClient sampleReduce
 -- main = runTask sampleReduce (Context 5 1 "task" "tempdata" 1)
 
 
-doTask :: (PartitionConstraint m, Serializable2 k1 v1, Serializable2 k3 v3)  =>
+doTask :: forall t m k1 v1 k3 v3. (PartitionConstraint t m, Serializable2 k1 v1, Serializable2 k3 v3)  =>
   MapReduce k1 v1 k3 v3 -> m ()
 doTask mr = do
-      files <- findTaskFiles
+      -- files <- findTaskFiles @t
       tid <- taskId
-      ps <- indexMR tid mr getDataFromPartition
-      forM_ ps evalOne
+      ps <- indexMR tid mr $ getDataFromPartition @t
+      forM_ ps (evalOne @t)
 
 
 
@@ -39,7 +40,7 @@ doTask mr = do
 runTask ::  (Serializable2 k1 v1, Serializable2 k3 v3) => MapReduce k1 v1 k3 v3 -> Context -> IO ()
 runTask mr ctx = do
   print ctx
-  runCtx ctx $ doTask mr
+  runCtx ctx $ (doTask @'LocalFileStore) mr
 
 validWork :: Context -> Bool
 validWork = (>= 0) . _taskIdL

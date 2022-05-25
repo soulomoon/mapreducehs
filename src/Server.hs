@@ -5,24 +5,23 @@
 {-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE DataKinds #-}
 
 module Main where
 
 import Control.Concurrent (forkFinally, readChan, Chan, writeChan, writeList2Chan, forkIO, getChanContents, newChan, threadDelay)
 import qualified Control.Exception as E
-import Control.Monad (forever, void)
 import Data.Binary (encode, decode)
 import Network.Socket
 import Network.Socket.ByteString.Lazy (sendAll, recv)
 import Core.Context 
 import Core.MapReduceC
-import Data.List
 import Control.Monad.State
 import Core.Partition
 import Impl
 import Core.Serialize
-import Core.Partition
 import Core.Std
+import Core.Store
 
 
 
@@ -34,17 +33,17 @@ main = do
   cOut <- newChan
   end <- newChan
   let cxt = getContext 5 sampleReduce
-  runCtx (Context 5 0 "task" "tempdata" 0) $ sendDataToPartitions sample
+  runCtx (Context 5 0 "task" "tempdata" 0) $ sendDataToPartitions @'LocalFileStore sample
   runWorker cIn cOut end cxt
   runCtx (Context 5 len "task" "tempdata" 0) $ sendResult sampleReduce
 
 sendResult :: forall k1 v1 k3 v3 m. (Serializable2 k3 v3, MonadState Context m, MonadIO m) => MapReduce k1 v1 k3 v3 -> m ()
 sendResult _ = do
-    a <- getAllData 
+    a <- getAllData @'LocalFileStore
     liftIO $ mapM_ print a
-    dd <- getAllDataTup @k3 @v3
+    dd <- getAllDataTup @'LocalFileStore @k3 @v3
     incrTaskId
-    sendDataToPartition 0 dd
+    sendDataToPartition @'LocalFileStore 0 dd
 
 runWorker ::  Chan Context -> Chan Context -> Chan () -> [[Context]] -> IO ()
 runWorker cIn cOut end cxt = do
