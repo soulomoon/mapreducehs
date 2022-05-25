@@ -25,6 +25,3 @@ getContext :: Int -> MapReduce k1 v1 k3 v3 -> [[Context]]
 getContext n mr =
   let k = pipeLineLength mr in
   [[Context n tid "task" "tempdata" wid  | wid <- [0 .. n-1] ] | tid <- [0 .. k-1]]
-
-runCtx:: Monad m => Context -> (StateT Context m) a -> m a
-runCtx context =  (`evalStateT` context)

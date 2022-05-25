@@ -18,7 +18,7 @@ import Data.List
 import Impl
 import Core.Store
 import Control.Monad.Cont
-import Core.Std (evalOne)
+import Core.Std 
 
 main :: IO ()
 main = runClient sampleReduce
