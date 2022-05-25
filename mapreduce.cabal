@@ -54,9 +54,9 @@ common deps
 --   import: deps
 --   main-is: Server.hs
 
-executable Client
+executable Worker
   import: deps
-  main-is: Client.hs
+  main-is: Worker.hs
 
 library lib
   import: deps

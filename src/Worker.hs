@@ -13,7 +13,6 @@ import Control.Monad (when, forM_)
 import Core.Partition (PartitionConstraint, getDataFromPartition)
 import Core.MapReduceC (indexMR, MapReduce (MrOut, (:>)), ToM (toM))
 import Core.Serialize (Serializable2)
-import Core.Worker (evalOne)
 import Control.Monad.IO.Class (liftIO)
 import Data.List
 import Impl

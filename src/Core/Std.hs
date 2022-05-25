@@ -22,17 +22,6 @@ import Core.Serialize (Serializable2)
 import Core.Type
 import Control.Monad.Reader (ReaderT (runReaderT))
 
--- standard implementation of running the interpreter
-
--- main spawn virtual workers, each virtual workers invoke working on different real workers
--- real worker may die, virtual worker never dies.
--- 1. virtual worker spawn a new thread to timeout the virtual worker
--- 2. virtual worker send signal to worker to start working.
--- 3. virtual worker wait for the worker to response.
-
--- evaluator extension
-evId :: forall m k v. (Serializable2 k v, MonadContext m, Monad m) => Trans m k v
-evId ev ev' e = incrTaskId >> ev ev' e
-
-runContext :: Monad m => Context -> StateT Context m a -> m a
-runContext context =  (`evalStateT` context) 
+-- should increase id before send
+evalOne :: (PartitionConstraint m) => EvalPair -> m ()
+evalOne (EvalPair mr d) = incrTaskId >> sendDataToPartitions (mr d)
