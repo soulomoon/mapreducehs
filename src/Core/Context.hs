@@ -23,8 +23,6 @@ class (Monad m) => MonadContext m where
   dirName :: m String
   taskId :: m Int
   incrTaskId :: m ()
-  -- pack current context to bytes
-  pack :: m ByteString
 
 class Has c m where
   getC :: m c
@@ -39,7 +37,6 @@ instance (Monad m, MonadState Context m, MonadIO m) => MonadContext m where
   spaceName = gets _spaceNameL
   dirName = gets _dirNameL
   incrTaskId = modify (\x -> x {_taskIdL = _taskIdL x + 1})
-  pack = pack
 
 
 data Context = Context { 
