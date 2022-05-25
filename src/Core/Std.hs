@@ -33,3 +33,11 @@ sendResult _ = do
     liftIO $ print dd
     incrTaskId
     sendDataToPartition @t 0 dd
+
+doTask :: forall t m k1 v1 k3 v3. (PartitionConstraint t m, Serializable2 k1 v1, Serializable2 k3 v3)  =>
+  MapReduce k1 v1 k3 v3 -> m ()
+doTask mr = do
+      -- files <- findTaskFiles @t
+      tid <- taskId
+      ps <- indexMR tid mr $ getDataFromPartition @t
+      forM_ ps (evalOne @t)
