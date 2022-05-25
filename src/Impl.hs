@@ -3,7 +3,6 @@ module Impl where
 import Core.MapReduceC
 import Core.Context
 import Data.List
-import Control.Monad.State (evalStateT, StateT)
 
 mapper :: (String, String) -> [(Char, Int)]
 mapper (_, v) = map (\xs -> (head xs, length xs)) $ group v
