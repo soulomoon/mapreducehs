@@ -13,7 +13,6 @@ import Network.Socket
 import Network.Socket.ByteString.Lazy (recv, sendAll)
 import Data.Binary (decode, encode)
 import Core.Context
-import Core.Partition (PartitionConstraint, getDataFromPartition)
 import Core.MapReduceC 
 import Core.Serialize (Serializable2)
 import Impl
@@ -23,14 +22,6 @@ import Core.Std
 
 main :: IO ()
 main = runClient sampleReduce
--- main = runTask sampleReduce (Context 5 1 "task" "tempdata" 1)
-
-
--- use do task
-runTask ::  (Serializable2 k1 v1, Serializable2 k3 v3) => MapReduce k1 v1 k3 v3 -> Context -> IO ()
-runTask mr ctx = do
-  print ctx
-  runCtx ctx $ (doTask @'LocalFileStore) mr
 
 validWork :: Context -> Bool
 validWork = (>= 0) . _taskIdL
@@ -49,7 +40,7 @@ goOne mr =
   let t = decode msg
   print t
   if validWork t
-    then runTask mr t >> sendAll s (encode t) >> return True
+    then runTask @'LocalFileStore mr t >> sendAll s (encode t) >> return True
     else return False
 
 -- from the "network-run" package.

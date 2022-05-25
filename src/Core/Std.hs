@@ -41,3 +41,12 @@ doTask mr = do
       tid <- taskId
       ps <- indexMR tid mr $ getDataFromPartition @t
       forM_ ps (evalOne @t)
+
+-- use do task
+runTask ::
+  forall (t :: StoreType) k1 v1 k3 v3.
+  (Serializable2 k1 v1, Serializable2 k3 v3, MonadStore t (StateT Context IO)) =>
+  MapReduce k1 v1 k3 v3 ->
+  Context ->
+  IO ()
+runTask mr ctx = runCtx ctx $ (doTask @t) mr
