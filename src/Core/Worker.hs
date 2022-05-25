@@ -24,9 +24,6 @@ evId :: forall m k v. (Serializable2 k v, MonadContext m, Monad m) => Trans m k 
 evId ev ev' e = incrTaskId >> ev ev' e
 
 
--- should increase id before send
-evalOne :: (PartitionConstraint m) => EvalPair -> m ()
-evalOne (EvalPair mr d) = incrTaskId >> sendDataToPartitions (mr d)
     
 
     

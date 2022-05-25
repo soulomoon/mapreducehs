@@ -73,6 +73,6 @@ library lib
     Core.Server
     Impl
 
-executable main
+executable Server
   import: deps
-  main-is: Main.hs
+  main-is: Server.hs
