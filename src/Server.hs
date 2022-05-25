@@ -47,8 +47,8 @@ sendResult _ = do
 
 runWorker ::  Chan Context -> Chan Context -> Chan () -> [[Context]] -> IO ()
 runWorker cIn cOut end cxt = do
-  forkIO $ go cxt
-  forkIO $ runServer cIn cOut
+  _ <- forkIO $ go cxt
+  _ <- forkIO $ runServer cIn cOut
   x <- readChan end
   print x
   where 

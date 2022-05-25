@@ -12,7 +12,6 @@
 module Core.Context where
 
 import Control.Monad.RWS
-import Data.ByteString.Char8 (ByteString)
 import Data.Binary (Binary)
 import GHC.Generics (Generic)
 
