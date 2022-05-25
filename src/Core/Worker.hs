@@ -18,7 +18,6 @@ import Control.Monad.State
 import Control.Monad.Reader (ReaderT (runReaderT), MonadReader)
 
 
-data WorkerType = VirtualWorker | ActualWorker
 
 -- evaluator extension
 evId :: forall m k v. (Serializable2 k v, MonadContext m, Monad m) => Trans m k v
