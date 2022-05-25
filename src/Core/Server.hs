@@ -13,7 +13,6 @@ import Data.Binary (encode)
 import Network.Socket
 import Network.Socket.ByteString.Lazy (sendAll)
 import Control.Monad.IO.Class (MonadIO (liftIO))
-import Core.Signal
 import Control.Monad.RWS (MonadReader)
 import Core.Context
 

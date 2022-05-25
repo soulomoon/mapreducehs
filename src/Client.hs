@@ -10,7 +10,6 @@ import Network.Socket.ByteString.Lazy (recv, sendAll)
 import Data.Binary (decode, encode)
 import Core.Context
 import Control.Monad (when, forM_)
-import Core.Signal
 import Core.Partition (PartitionConstraint, getDataFromPartition)
 import Core.MapReduceC (indexMR, MapReduce (MrOut, (:>)), ToM (toM))
 import Core.Serialize (Serializable2)

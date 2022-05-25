@@ -25,19 +25,19 @@ common deps
   default-language: Haskell2010
   hs-source-dirs:   src
   ghc-options: -Wall
-  other-modules:   
-    Core.MapReduceC
-    Core.Partition
-    Core.Util
-    Core.Serialize
-    Core.Context
-    Core.Signal
-    Core.Type
-    Core.Std
-    Core.Store
-    Core.Worker
-    Core.Server
-    Impl
+  -- other-modules:   
+  --   Core.MapReduceC
+  --   Core.Partition
+  --   Core.Util
+  --   Core.Serialize
+  --   Core.Context
+  --   Core.Signal
+  --   Core.Type
+  --   Core.Std
+  --   Core.Store
+  --   Core.Worker
+  --   Core.Server
+  --   Impl
   build-depends:
       base            >=4.12  && <5
     , text
@@ -58,21 +58,20 @@ executable Client
   import: deps
   main-is: Client.hs
 
--- library lib
---   import: deps
-  -- exposed-modules: 
-  --   Core.MapReduceC
-  --   Core.Partition
-  --   Core.Util
-  --   Core.Serialize
-  --   Core.Context
-  --   Core.Signal
-  --   Core.Type
-  --   Core.Std
-  --   Core.Store
-  --   Core.Worker
-  --   Core.Server
-  --   Impl
+library lib
+  import: deps
+  exposed-modules: 
+    Core.MapReduceC
+    Core.Partition
+    Core.Util
+    Core.Serialize
+    Core.Context
+    Core.Type
+    Core.Std
+    Core.Store
+    Core.Worker
+    Core.Server
+    Impl
 
 executable main
   import: deps

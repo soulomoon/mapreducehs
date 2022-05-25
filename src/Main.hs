@@ -25,7 +25,6 @@ import Core.Partition
 
 
 
-
 main :: IO ()
 main = do
   let len = pipeLineLength sampleReduce
