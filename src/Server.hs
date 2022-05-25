@@ -19,7 +19,6 @@ import Core.MapReduceC
 import Control.Monad.State
 import Core.Partition
 import Impl
-import Core.Serialize
 import Core.Std
 import Core.Store
 
@@ -35,15 +34,8 @@ main = do
   let cxt = getContext 5 sampleReduce
   runCtx (Context 5 0 "task" "tempdata" 0) $ sendDataToPartitions @'LocalFileStore sample
   runWorker cIn cOut end cxt
-  runCtx (Context 5 len "task" "tempdata" 0) $ sendResult sampleReduce
+  runCtx (Context 5 len "task" "tempdata" 0) $ sendResult @'LocalFileStore sampleReduce
 
-sendResult :: forall k1 v1 k3 v3 m. (Serializable2 k3 v3, MonadState Context m, MonadIO m) => MapReduce k1 v1 k3 v3 -> m ()
-sendResult _ = do
-    a <- getAllData @'LocalFileStore
-    liftIO $ mapM_ print a
-    dd <- getAllDataTup @'LocalFileStore @k3 @v3
-    incrTaskId
-    sendDataToPartition @'LocalFileStore 0 dd
 
 runWorker ::  Chan Context -> Chan Context -> Chan () -> [[Context]] -> IO ()
 runWorker cIn cOut end cxt = do

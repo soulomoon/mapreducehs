@@ -40,6 +40,7 @@ sendDataToPartition pid kvs = do
 getDataFromPartition :: forall t k v m. (Serializable2 k v, MonadStore t m) => m [(k, v)]
 getDataFromPartition = getDataFromFiles @t $ findTaskFiles @t
 
+-- retrieve raw data
 getAllData :: forall t m. (MonadStore t m) =>  m [String]
 getAllData = getStringsFromFiles @t $ findAllTaskFiles @t
 
