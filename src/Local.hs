@@ -32,7 +32,10 @@ main = do
   let cxt = genContext 5 sampleReduce
   -- send  data to the all possible partitions to initialize the test
   runCtx (Context 5 0 "task" "tempdata" 0) $ sendDataToPartitions @'LocalFileStore sample
-  runAll cIn cOut cxt
+  -- fork all the workers
+  runAllWorkers cIn cOut cxt
+  -- act as server to send all tasks
+  sendTask cIn cOut cxt
   -- collect all the result
   runCtx (Context 5 len "task" "tempdata" 0) $ sendResult @'LocalFileStore sampleReduce
 
@@ -53,12 +56,10 @@ sendTask cIn cOut (x:xs) = do
   -- loop
   sendTask cIn cOut xs
 
-runAll ::  Chan Context -> Chan Context -> [[Context]] -> IO ()
-runAll cIn cOut cxts = do
-  print "starting server"
+runAllWorkers ::  Chan Context -> Chan Context -> [[Context]] -> IO ()
+runAllWorkers cIn cOut cxts = do
+  print "starting workers"
   replicateM_ 5 $ forkIO $ runLocalWorker cIn cOut
-  print "starting server"
-  sendTask cIn cOut cxts
 
 
 validWork :: Context -> Bool

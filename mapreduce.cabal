@@ -51,6 +51,33 @@ executable Worker
   main-is: Worker.hs
 
 
+executable Local
+  default-language: Haskell2010
+  hs-source-dirs:   src
+  ghc-options: -Wall
+  other-modules:   
+    Core.MapReduceC
+    Core.Partition
+    Core.Util
+    Core.Serialize
+    Core.Context
+    Core.Type
+    Core.Std
+    Core.Store
+    Impl
+  build-depends:
+      base            >=4.12  && <5
+    , text
+    , mtl
+    , containers
+    -- , lens
+    , hashable
+    , directory
+    , network
+    , bytestring
+    , binary
+  main-is: Local.hs
+
 executable Server
   default-language: Haskell2010
   hs-source-dirs:   src
@@ -85,14 +112,14 @@ Test-Suite Test
   ghc-options: -Wall
   other-modules: 
     Core.MapReduceC
-    -- Core.Partition
-    -- Core.Util
-    -- Core.Serialize
-    -- Core.Context
-    -- Core.Type
-    -- Core.Std
-    -- Core.Store
-    -- Impl
+    Core.Partition
+    Core.Util
+    Core.Serialize
+    Core.Context
+    Core.Type
+    Core.Std
+    Core.Store
+    Impl
   build-depends:
       base            >=4.12  && <5
     , text

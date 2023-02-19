@@ -27,7 +27,7 @@ runCtx:: Monad m => Context -> (StateT Context m) a -> m a
 runCtx context =  (`evalStateT` context)
 
 -- collect result and send to a new partition
-sendResult :: forall (t :: StoreType) k1 v1 k3 v3 m. (Serializable2 k3 v3, MonadState Context m, MonadIO m, MonadStore t m) => MapReduce k1 v1 k3 v3 -> m ()
+sendResult :: forall (t :: StoreType) k1 v1 k3 v3 m. (Serializable2 k3 v3, MonadState Context m, MonadStore t m) => MapReduce k1 v1 k3 v3 -> m ()
 sendResult _ = do
     dd <- getAllDataTup @t @k3 @v3
     liftIO $ print dd

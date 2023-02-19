@@ -20,7 +20,8 @@ sample = [("", "hello")]
 sampleReduce :: MapReduce [Char] [Char] Char Int
 sampleReduce = MrOut :> toM reducer :> toM mapperAdd1 :> toM mapper
 
-getContext :: Int -> MapReduce k1 v1 k3 v3 -> [[Context]]
-getContext n mr =
+-- generate a list of context, each context is a task in the pipeline
+genContext :: Int -> MapReduce k1 v1 k3 v3 -> [[Context]]
+genContext nWorker mr =
   let k = pipeLineLength mr in
-  [[Context n tid "task" "tempdata" wid  | wid <- [0 .. n-1] ] | tid <- [0 .. k-1]]
+  [[Context nWorker tid "task" "tempdata" wid  | wid <- [0 .. nWorker-1] ] | tid <- [0 .. k-1]]

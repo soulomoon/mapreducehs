@@ -37,6 +37,7 @@ sendDataToPartition pid kvs = do
   path <- mkFilePath @t pid
   writeToFile @t path $ serialize kvs
 
+-- get only the data from the current partition
 getDataFromPartition :: forall t k v m. (Serializable2 k v, MonadStore t m) => m [(k, v)]
 getDataFromPartition = getDataFromFiles @t $ findTaskFiles @t
 
@@ -44,6 +45,7 @@ getDataFromPartition = getDataFromFiles @t $ findTaskFiles @t
 getAllData :: forall t m. (MonadStore t m) =>  m [String]
 getAllData = getStringsFromFiles @t $ findAllTaskFiles @t
 
+-- get data from files
 getAllDataTup :: forall t k v m. (Serializable2 k v, MonadStore t m) =>  m [(k, v)]
 getAllDataTup = getDataFromFiles @t (findAllTaskFiles @t)
 
