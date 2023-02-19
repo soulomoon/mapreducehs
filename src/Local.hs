@@ -33,7 +33,7 @@ main = do
   -- send  data to the all possible partitions to initialize the test
   runCtx (Context 5 0 "task" "tempdata" 0) $ sendDataToPartitions @'LocalFileStore sample
   -- fork all the workers
-  runAllWorkers cIn cOut cxt
+  runAllWorkers cIn cOut
   -- act as server to send all tasks
   sendTask cIn cOut cxt
   -- collect all the result
@@ -52,12 +52,12 @@ sendTask cIn cOut (x:xs) = do
   writeList2Chan cOut x 
   putStrLn "putting to chan done"
   -- take all of the send task back from the channel
-  ys <- take (length x) <$> getChanContents cIn 
+  _ <- take (length x) <$> getChanContents cIn 
   -- loop
   sendTask cIn cOut xs
 
-runAllWorkers ::  Chan Context -> Chan Context -> [[Context]] -> IO ()
-runAllWorkers cIn cOut cxts = do
+runAllWorkers ::  Chan Context -> Chan Context -> IO ()
+runAllWorkers cIn cOut = do
   print "starting workers"
   replicateM_ 5 $ forkIO $ runLocalWorker cIn cOut
 

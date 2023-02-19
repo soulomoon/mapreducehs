@@ -2,7 +2,6 @@
 -- {-# LANGUAGE DeriveGeneric #-}
 -- Echo server program
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds #-}
@@ -49,7 +48,7 @@ sendTask cIn cOut (x:xs) = do
   writeList2Chan cOut x 
   putStrLn "putting to chan done"
   -- take all of the send task back from the channel
-  ys <- take (length x) <$> getChanContents cIn 
+  _ <- take (length x) <$> getChanContents cIn 
   -- loop
   sendTask cIn cOut xs
 

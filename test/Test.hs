@@ -1,7 +1,6 @@
 module Main where
 
 import Test.HUnit
-import Core.MapReduceC
 
 foo :: Int -> (Int, Int)
 foo 3 = (1, 2)
