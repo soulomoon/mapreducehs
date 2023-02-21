@@ -8,38 +8,21 @@
 
 module Main where
 
-import Control.Concurrent (forkFinally, readChan, Chan, writeChan, forkIO, newChan)
+import Control.Concurrent (forkFinally, readChan, Chan, writeChan, forkIO)
 import qualified Control.Exception as E
 import Data.Binary (encode, decode)
 import Network.Socket
 import Network.Socket.ByteString.Lazy (sendAll, recv)
 import Core.Context
-import Core.MapReduceC
 import Control.Monad.State
-import Core.Partition
 import Impl
 import Core.Std
 import Core.Store
 
-
 main :: IO ()
-main = do
-  let len = pipeLineLength sampleReduce
-  putStrLn $ "mr length: " ++ show len
-  cIn <- newChan
-  cOut <- newChan
-  let cxt = genContext 5 sampleReduce
-  -- send  data to the all possible partitions to initialize the test
-  runCtx (Context 5 0 "task" "tempdata" 0) $ sendDataToPartitions @'LocalFileStore sample
-  -- fork all the workers
-  runAllWorkers cIn cOut
-  -- act as server to send all tasks
-  sendTask cIn cOut cxt
-  -- collect all the result
-  runCtx (Context 5 len "task" "tempdata" 0) $ sendResult @'LocalFileStore sampleReduce
+main = runMapReduce runLocalWorker
 
-
--- read from chan and run the sample reduce
+-- handle the work locally
 runLocalWorker :: Chan Context -> Chan Context -> IO ()
 runLocalWorker cIn cOut = do
   context <- readChan cOut

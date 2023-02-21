@@ -1,11 +1,15 @@
-{-# LANGUAGE TypeApplications #-}
+-- implement using chan
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeApplications #-}
 module Impl where
 
 import Core.MapReduceC
 import Core.Context
 import Data.List
-import Control.Concurrent (Chan, writeChan, writeList2Chan, getChanContents, threadDelay)
+import Control.Concurrent (Chan, writeChan, writeList2Chan, getChanContents, threadDelay, newChan, forkIO)
+import Core.Store (StoreType(LocalFileStore), MonadStore (cleanUp))
+import Core.Partition (sendDataToPartitions)
+import Core.Std (runCtx, sendResult)
 
 mapper :: (String, String) -> [(Char, Int)]
 mapper (_, v) = map (\xs -> (head xs, length xs)) $ group v
@@ -52,5 +56,24 @@ sendTask cIn cOut (x:xs) = do
   sendTask cIn cOut xs
 
 
+splitNum :: Int
+splitNum = 5
+
 myPort :: String
 myPort = "3000"
+
+runMapReduce :: (Chan Context -> Chan Context -> IO ()) -> IO ()
+runMapReduce serverRun = do
+  let len = pipeLineLength sampleReduce
+  putStrLn $ "mr length: " ++ show len
+  cIn <- newChan
+  cOut <- newChan
+  let cxt = genContext splitNum sampleReduce
+  -- send  data to the all possible partitions to initialize the test
+  runCtx (Context splitNum 0 "task" "tempdata" 0) $ cleanUp @'LocalFileStore >> sendDataToPartitions @'LocalFileStore sample
+  -- the server to send the task to the workers
+  _ <- forkIO (serverRun cIn cOut)
+  -- send all tasks
+  sendTask cIn cOut cxt
+  -- collect all the result
+  runCtx (Context splitNum len "task" "tempdata" 0) $ sendResult @'LocalFileStore sampleReduce
