@@ -1,4 +1,4 @@
-{-# LANGUAGE ConstrainedClassMethods #-}
+
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE UndecidableInstances #-}
@@ -8,6 +8,7 @@
 {-# LANGUAGE AllowAmbiguousTypes #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts #-}
 
 module Core.Store where
 
@@ -15,7 +16,7 @@ import Control.Monad.Cont
 import Core.Context
 import Core.Serialize
 import Data.List (isSuffixOf)
-import System.Directory (listDirectory)
+import System.Directory (listDirectory, createDirectory, removeDirectoryRecursive)
 import System.IO
 
 -- handles IO
@@ -23,6 +24,7 @@ import System.IO
 data StoreType = MemoryStore | LocalFileStore
 
 class (MonadContext m, MonadIO m) => MonadStore (t :: StoreType) m where
+  cleanUp :: m ()
   findAllTaskFiles :: m [String] -- | a lift of file names
   findAllTaskFiles = do
     tId <- taskId
@@ -63,7 +65,11 @@ instance (MonadContext m, MonadIO m) => MonadStore 'LocalFileStore m where
 
   getStringsFromFiles mFiles = do
     files <- mFiles
-    r <- liftIO (mapM readFile files)
-    return r
+    liftIO (mapM readFile files)
+  cleanUp = do
+    dir <- dirName
+    liftIO $ removeDirectoryRecursive dir
+    liftIO $ createDirectory dir
+    return ()
 
 -- local file store

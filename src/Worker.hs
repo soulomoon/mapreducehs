@@ -12,19 +12,16 @@ import qualified Control.Exception as E
 import Network.Socket
 import Network.Socket.ByteString.Lazy (recv, sendAll)
 import Data.Binary (decode, encode)
-import Core.Context
 import Core.MapReduceC 
 import Core.Serialize (Serializable2)
 import Impl
 import Core.Store
 import Control.Monad.Cont
 import Core.Std 
+import Control.Concurrent
 
 main :: IO ()
 main = runClient sampleReduce
-
-validWork :: Context -> Bool
-validWork = (>= 0) . _taskIdL
 
 -- keep doing work
 runClient :: (Serializable2 k1 v1, Serializable2 k3 v3) => MapReduce k1 v1 k3 v3 -> IO ()
@@ -34,11 +31,14 @@ runClient mr = do
 
 goOne  :: (Serializable2 k1 v1, Serializable2 k3 v3) => MapReduce k1 v1 k3 v3 -> IO Bool
 goOne mr =
-  runTCPClient "127.0.0.1" "3000" $ \s -> do
+  runTCPClient "127.0.0.1" myPort $ \s -> do
   putStrLn "getting"
   msg <- recv s 10240
+  -- get the work
   let t = decode msg
   print t
+  -- do the work for 1 second
+  _ <- threadDelay 1000000
   if validWork t
     then runTask @'LocalFileStore mr t >> sendAll s (encode t) >> return True
     else return False

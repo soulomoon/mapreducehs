@@ -13,7 +13,7 @@ partB :: Int -> IO Bool
 partB x = pure (x == 3) 
 
 test1, test2 :: Test
-test1 = TestCase $ assertEqual "for (foo 3)," 1 1
+test1 = TestCase $ assertEqual "for (foo 3)," (1 :: Integer) (1 :: Integer)
 test2 = TestCase $ do
   (x, y) <- partA 3
   assertEqual "for the first result of partA," 5 x

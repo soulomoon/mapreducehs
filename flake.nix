@@ -16,9 +16,19 @@
         packages = {
           mapreduce = pkgs.haskellPackages.callCabal2nix "mapreduce" ./. { };
         };
-        apps.local = {
-            type = "app";
-            program = "${packages.mapreduce}/bin/local";
+        apps = {
+            local = {
+              type = "app";
+              program = "${packages.mapreduce}/bin/local";
+            };
+            server = {
+              type = "app";
+              program = "${packages.mapreduce}/bin/server";
+            };
+            worker = {
+              type = "app";
+              program = "${packages.mapreduce}/bin/worker";
+            };
           };
         packages.default = packages.mapreduce;
         devShells.default =

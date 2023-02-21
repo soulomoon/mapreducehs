@@ -2,19 +2,18 @@
 -- {-# LANGUAGE DeriveGeneric #-}
 -- Echo server program
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE ExplicitForAll #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds #-}
 
 module Main where
 
-import Control.Concurrent (forkFinally, readChan, Chan, writeChan, writeList2Chan, forkIO, getChanContents, newChan, threadDelay)
+import Control.Concurrent (forkFinally, readChan, Chan, writeChan, forkIO, newChan)
 import qualified Control.Exception as E
 import Data.Binary (encode, decode)
 import Network.Socket
 import Network.Socket.ByteString.Lazy (sendAll, recv)
-import Core.Context 
+import Core.Context
 import Core.MapReduceC
 import Control.Monad.State
 import Core.Partition
@@ -40,31 +39,7 @@ main = do
   runCtx (Context 5 len "task" "tempdata" 0) $ sendResult @'LocalFileStore sampleReduce
 
 
--- keep putting task to the out channel
--- and read the result from the in channel
-sendTask ::  Chan Context -> Chan Context -> [[Context]] -> IO ()
--- invalid task to end the worker
-sendTask _ cOut [] = 
-  writeChan cOut (Context (-1) (-1) "task" "tempdata" (-1)) >> threadDelay 1000 
-sendTask cIn cOut (x:xs) = do 
-  putStrLn "putting to chan"
-  print x
-  writeList2Chan cOut x 
-  putStrLn "putting to chan done"
-  -- take all of the send task back from the channel
-  _ <- take (length x) <$> getChanContents cIn 
-  -- loop
-  sendTask cIn cOut xs
-
-runAllWorkers ::  Chan Context -> Chan Context -> IO ()
-runAllWorkers cIn cOut = do
-  print "starting workers"
-  replicateM_ 5 $ forkIO $ runLocalWorker cIn cOut
-
-
-validWork :: Context -> Bool
-validWork = (>= 0) . _taskIdL
-
+-- read from chan and run the sample reduce
 runLocalWorker :: Chan Context -> Chan Context -> IO ()
 runLocalWorker cIn cOut = do
   context <- readChan cOut
@@ -73,21 +48,32 @@ runLocalWorker cIn cOut = do
     >> writeChan cIn context 
     >> runLocalWorker cIn cOut
 
+-- sample worker
+runAllWorkers ::  Chan Context -> Chan Context -> IO ()
+runAllWorkers cIn cOut = do
+  print "starting workers"
+  replicateM_ 5 $ forkIO $ runLocalWorker cIn cOut
 
 
+-- handle the exception here if not receiving the result
 runServer :: Chan Context -> Chan Context -> IO ()
-runServer cIn cOut = do 
+runServer cIn cOut = do
   runTCPServer Nothing "3000" talk
   where
     talk s = do
-      putStrLn "Client connected, sending:"
+      putStrLn "Client connected, sending task:"
       context <- readChan cOut
       sendAll s (encode context)
-      -- should timeout here
-      response <- decode <$> recv s 10240
-      print $ context == response
-      writeChan cIn response
-      
+      -- only wait for the result when the task is valid
+      -- otherwise, just send the next task
+      when (validWork context)
+        (do
+          -- should timeout here
+          response <- decode <$> recv s 10240
+          -- should verify the response and do error handling
+          print $ context == response
+          writeChan cIn response)
+
 
 -- from the "network-run" package.
 runTCPServer :: Maybe HostName -> ServiceName -> (Socket -> IO a) -> IO a
