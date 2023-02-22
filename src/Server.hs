@@ -20,7 +20,7 @@ import Core.Type (StoreType(LocalFileStore))
 
 
 main :: IO ()
-main = runMapReduce @'LocalFileStore runServer
+main = runMapReduce @'LocalFileStore sampleReduce runServer
 
 -- handle the exception here if not receiving the result
 -- handle the work through tcp network

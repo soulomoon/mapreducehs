@@ -22,7 +22,7 @@ import Core.Type (StoreType(MemoryStore, LocalFileStore))
 import Core.MapReduceC (E(E), naiveEvaluator)
 
 main :: IO ()
-main = runMapReduce @'LocalFileStore runLocalWorker
+main = runMapReduce @'LocalFileStore sampleReduce  runLocalWorker
 
 sampleEval :: IO ()
 sampleEval = do

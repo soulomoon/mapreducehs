@@ -21,6 +21,7 @@ import Core.Std (runCtx, sendResult, getResult)
 import Control.Monad.State
 import Data.Map (Map)
 import Core.Type (StoreType)
+import Core.Serialize (Serializable2)
 
 mapper :: (String, String) -> [(Char, Int)]
 mapper (_, v) = map (\xs -> (head xs, length xs)) $ group v
@@ -74,13 +75,13 @@ myPort = "3000"
 
 newtype ContextState m = ContextState (StateT (Context, Map String String) IO m)
 
-runMapReduce :: forall (t::StoreType) . (MonadStore t (StateT Context IO)) => (Chan Context -> Chan Context -> IO ()) -> IO ()
-runMapReduce serverRun = do
-  let len = pipeLineLength sampleReduce
+runMapReduce :: forall (t::StoreType) k1 v1 k2 v2 . (Serializable2 k2 v2, MonadStore t (StateT Context IO)) => MapReduce k1 v1 k2 v2 -> (Chan Context -> Chan Context -> IO ()) -> IO ()
+runMapReduce mr serverRun = do
+  let len = pipeLineLength mr
   putStrLn $ "mr length: " ++ show len
   cIn <- newChan
   cOut <- newChan
-  let cxt = genContext splitNum sampleReduce
+  let cxt = genContext splitNum mr
   -- send  data to the all possible partitions to initialize the test
   runCtx (Context splitNum 0 "task" "tempdata" 0) $ cleanUp @t >> sendDataToPartitions @t sample
   -- the server to send the task to the workers
@@ -88,10 +89,10 @@ runMapReduce serverRun = do
   -- send all tasks
   sendTask cIn cOut cxt
   -- collect all the result
-  runCtx (Context splitNum len "task" "tempdata" 0) $ sendResult @t sampleReduce
+  runCtx (Context splitNum len "task" "tempdata" 0) $ sendResult @t mr
 
-runMapReduceAndGetResult :: forall (t::StoreType) . (MonadStore t (StateT Context IO)) => (Chan Context -> Chan Context -> IO ()) -> IO [(Char, Int)]
-runMapReduceAndGetResult serverRun = do
-  let len = pipeLineLength sampleReduce
-  _ <- runMapReduce @t serverRun
-  runCtx (Context splitNum len "task" "tempdata" 0) $ getResult @t sampleReduce
+runMapReduceAndGetResult :: forall (t::StoreType) k1 v1 k2 v2 . (Serializable2 k2 v2, MonadStore t (StateT Context IO)) => MapReduce k1 v1 k2 v2 -> (Chan Context -> Chan Context -> IO ()) -> IO [(k2, v2)]
+runMapReduceAndGetResult mr serverRun = do
+  let len = pipeLineLength mr
+  _ <- runMapReduce @t mr serverRun
+  runCtx (Context splitNum len "task" "tempdata" 0) $ getResult @t mr

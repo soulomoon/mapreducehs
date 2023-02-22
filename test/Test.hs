@@ -17,6 +17,7 @@ import Impl
 import Core.Serialize
 import Core.MapReduceC
 import Core.Std (runTask)
+import Data.List (sort)
 
 foo :: Int -> (Int, Int)
 foo 3 = (1, 2)
@@ -26,21 +27,20 @@ partA :: Int -> IO (Int, Int)
 partA _ = pure (5, 3) -- change to (5,3) if you want the tests to succeed
 
 partB :: Int -> IO Bool
-partB x = pure (x == 3) 
+partB x = pure (x == 3)
 
-testServer :: IO ()
-testServer = do
+testServer ::  MapReduce [Char] [Char] Char Int -> IO [(Char, Int)]
+testServer mr = do
   -- wait for the parent
-  _ <- forkIO $ threadDelay 2000000 >> runClient sampleReduce 
-  result <- runMapReduceAndGetResult @'LocalFileStore runServer
-  print result
-  return ()
+  _ <- forkIO $ threadDelay 2000000 >> runClient mr
+  runMapReduceAndGetResult @'LocalFileStore mr runServer
 
 
 test1, test2 :: Test
-test1 = TestCase $ do 
-  a <- testServer
-  assertEqual "testServer" () a
+test1 = TestCase $ do
+  a <- sort <$> testServer sampleReduce
+  b <- sort <$> naiveEvaluator sample sampleReduce
+  assertEqual "testServer" b a
 -- test1 = TestCase $ assertEqual "for (foo 3)," (1 :: Integer) (1 :: Integer)
 test2 = TestCase $ do
   (x, y) <- partA 3
