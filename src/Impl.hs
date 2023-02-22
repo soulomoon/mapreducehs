@@ -1,6 +1,11 @@
 -- implement using chan
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 module Impl where
 
 import Core.MapReduceC
@@ -8,8 +13,9 @@ import Core.Context
 import Data.List
 import Control.Concurrent (Chan, writeChan, writeList2Chan, getChanContents, threadDelay, newChan, forkIO)
 import Core.Store (StoreType(LocalFileStore), MonadStore (cleanUp))
-import Core.Partition (sendDataToPartitions)
+import Core.Partition (sendDataToPartitions, PartitionConstraint)
 import Core.Std (runCtx, sendResult)
+import Control.Monad.State
 
 mapper :: (String, String) -> [(Char, Int)]
 mapper (_, v) = map (\xs -> (head xs, length xs)) $ group v
@@ -61,7 +67,7 @@ splitNum = 5
 myPort :: String
 myPort = "3000"
 
-runMapReduce :: (Chan Context -> Chan Context -> IO ()) -> IO ()
+runMapReduce :: forall (t::StoreType) . (MonadStore t (StateT Context IO)) => (Chan Context -> Chan Context -> IO ()) -> IO ()
 runMapReduce serverRun = do
   let len = pipeLineLength sampleReduce
   putStrLn $ "mr length: " ++ show len
@@ -69,10 +75,10 @@ runMapReduce serverRun = do
   cOut <- newChan
   let cxt = genContext splitNum sampleReduce
   -- send  data to the all possible partitions to initialize the test
-  runCtx (Context splitNum 0 "task" "tempdata" 0) $ cleanUp @'LocalFileStore >> sendDataToPartitions @'LocalFileStore sample
+  runCtx (Context splitNum 0 "task" "tempdata" 0) $ cleanUp @t >> sendDataToPartitions @t sample
   -- the server to send the task to the workers
   _ <- forkIO (serverRun cIn cOut)
   -- send all tasks
   sendTask cIn cOut cxt
   -- collect all the result
-  runCtx (Context splitNum len "task" "tempdata" 0) $ sendResult @'LocalFileStore sampleReduce
+  runCtx (Context splitNum len "task" "tempdata" 0) $ sendResult @t sampleReduce

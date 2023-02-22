@@ -20,7 +20,7 @@ import Core.Std
 import Core.Store
 
 main :: IO ()
-main = runMapReduce runLocalWorker
+main = runMapReduce @'LocalFileStore runLocalWorker
 
 -- handle the work locally
 runLocalWorker :: Chan Context -> Chan Context -> IO ()

@@ -16,10 +16,11 @@ import Network.Socket.ByteString.Lazy (sendAll, recv)
 import Core.Context
 import Control.Monad.State
 import Impl
+import Core.Store (StoreType(LocalFileStore))
 
 
 main :: IO ()
-main = runMapReduce runServer
+main = runMapReduce @'LocalFileStore runServer
 
 -- handle the exception here if not receiving the result
 -- handle the work through tcp network
