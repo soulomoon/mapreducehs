@@ -75,15 +75,15 @@ myPort = "3000"
 
 newtype ContextState m = ContextState (StateT (Context, Map String String) IO m)
 
-runMapReduce :: forall (t::StoreType) k1 v1 k2 v2 . (Serializable2 k2 v2, MonadStore t (StateT Context IO)) => MapReduce k1 v1 k2 v2 -> (Chan Context -> Chan Context -> IO ()) -> IO ()
-runMapReduce mr serverRun = do
+runMapReduce :: forall (t::StoreType) k1 v1 k2 v2 . (Serializable2 k1 v1, Serializable2 k2 v2, MonadStore t (StateT Context IO)) => [(k1, v1)] -> MapReduce k1 v1 k2 v2 -> (Chan Context -> Chan Context -> IO ()) -> IO ()
+runMapReduce s1 mr serverRun = do
   let len = pipeLineLength mr
   putStrLn $ "mr length: " ++ show len
   cIn <- newChan
   cOut <- newChan
   let cxt = genContext splitNum mr
   -- send  data to the all possible partitions to initialize the test
-  runCtx (Context splitNum 0 "task" "tempdata" 0) $ cleanUp @t >> sendDataToPartitions @t sample
+  runCtx (Context splitNum 0 "task" "tempdata" 0) $ cleanUp @t >> sendDataToPartitions @t s1
   -- the server to send the task to the workers
   _ <- forkIO (serverRun cIn cOut)
   -- send all tasks
@@ -91,8 +91,8 @@ runMapReduce mr serverRun = do
   -- collect all the result
   runCtx (Context splitNum len "task" "tempdata" 0) $ sendResult @t mr
 
-runMapReduceAndGetResult :: forall (t::StoreType) k1 v1 k2 v2 . (Serializable2 k2 v2, MonadStore t (StateT Context IO)) => MapReduce k1 v1 k2 v2 -> (Chan Context -> Chan Context -> IO ()) -> IO [(k2, v2)]
-runMapReduceAndGetResult mr serverRun = do
+runMapReduceAndGetResult :: forall (t::StoreType) k1 v1 k2 v2 . (Serializable2 k1 v1, Serializable2 k2 v2, MonadStore t (StateT Context IO)) => [(k1, v1)] -> MapReduce k1 v1 k2 v2 -> (Chan Context -> Chan Context -> IO ()) -> IO [(k2, v2)]
+runMapReduceAndGetResult s1 mr serverRun = do
   let len = pipeLineLength mr
-  _ <- runMapReduce @t mr serverRun
+  _ <- runMapReduce @t s1 mr serverRun
   runCtx (Context splitNum len "task" "tempdata" 0) $ getResult @t mr

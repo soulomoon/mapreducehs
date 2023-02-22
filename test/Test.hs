@@ -2,11 +2,11 @@
 {-# LANGUAGE DataKinds #-}
 module Main where
 
-import Test.HUnit
+import Test.HUnit (Test(..), runTestTTAndExit)
 import Core.Type (StoreType(LocalFileStore))
 import Impl (runMapReduce)
 
-import Control.Concurrent (forkFinally, readChan, Chan, writeChan, forkIO, threadDelay)
+import Control.Concurrent (forkFinally, readChan, Chan, writeChan, forkIO, threadDelay, newChan)
 import qualified Control.Exception as E
 import Data.Binary (encode, decode)
 import Network.Socket
@@ -20,6 +20,9 @@ import Core.Std (runTask)
 import Data.List (sort)
 import ImplWorker (runClient)
 import ImplServer (runServer)
+import Test.Tasty
+import Test.Tasty.QuickCheck as QC
+import Test.Tasty.HUnit
 
 foo :: Int -> (Int, Int)
 foo 3 = (1, 2)
@@ -31,17 +34,33 @@ partA _ = pure (5, 3) -- change to (5,3) if you want the tests to succeed
 partB :: Int -> IO Bool
 partB x = pure (x == 3)
 
-testServer ::  MapReduce [Char] [Char] Char Int -> IO [(Char, Int)]
-testServer mr = do
+sendSignalWith begin x = do
+  writeChan begin ()
+  print "signal sent"
+  x
+  
+waitSignalWith begin x = do
+  _ <- readChan begin
+  print "signal received"
+  threadDelay 200000
+  x
+  
+
+sample1 :: [([Char], [Char])]
+sample1 = [("", "hello")]
+
+testServer :: [([Char], [Char])] -> MapReduce [Char] [Char] Char Int -> IO [(Char, Int)]
+testServer s1 mr = do
+  begin <- newChan
   -- wait for the parent
-  _ <- forkIO $ threadDelay 2000000 >> runClient mr
-  runMapReduceAndGetResult @'LocalFileStore mr runServer
+  _ <- forkIO $ waitSignalWith begin $ runClient mr
+  sendSignalWith begin $ runMapReduceAndGetResult @'LocalFileStore s1 mr runServer
 
 
 test1, test2 :: Test
 test1 = TestCase $ do
-  a <- sort <$> testServer sampleReduce
-  b <- sort <$> naiveEvaluator sample sampleReduce
+  a <- sort <$> testServer sample1 sampleReduce
+  b <- sort <$> naiveEvaluator sample1 sampleReduce
   assertEqual "testServer" b a
 -- test1 = TestCase $ assertEqual "for (foo 3)," (1 :: Integer) (1 :: Integer)
 test2 = TestCase $ do

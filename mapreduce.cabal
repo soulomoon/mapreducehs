@@ -132,4 +132,7 @@ Test-Suite Test
     , HUnit >= 1.3
     , QuickCheck 
     , network
+    , tasty
+    , tasty-quickcheck
+    , tasty-hunit,
   main-is: Test.hs
