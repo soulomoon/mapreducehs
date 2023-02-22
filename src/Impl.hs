@@ -42,8 +42,7 @@ validWork = (>= 0) . _taskIdL
 -- and read the result from the in channel
 sendTask ::  Chan Context -> Chan Context -> [[Context]] -> IO ()
 -- invalid task to end the worker
-sendTask _ cOut [] =
-  writeChan cOut (Context (-1) (-1) "task" "tempdata" (-1)) >> threadDelay 1000
+sendTask _ cOut [] = writeChan cOut (Context (-1) (-1) "task" "tempdata" (-1)) >> threadDelay 1000
 sendTask cIn cOut (x:xs) = do
   putStrLn "putting to chan"
   print (length x)

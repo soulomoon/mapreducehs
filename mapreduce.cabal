@@ -130,4 +130,5 @@ Test-Suite Test
     , bytestring
     , binary
     , HUnit >= 1.3
+    , QuickCheck 
   main-is: Test.hs
