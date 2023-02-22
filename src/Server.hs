@@ -16,7 +16,7 @@ import Network.Socket.ByteString.Lazy (sendAll, recv)
 import Core.Context
 import Control.Monad.State
 import Impl
-import Core.Store (StoreType(LocalFileStore))
+import Core.Type (StoreType(LocalFileStore))
 
 
 main :: IO ()

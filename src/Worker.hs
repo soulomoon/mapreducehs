@@ -19,6 +19,7 @@ import Core.Store
 import Control.Monad.Cont
 import Core.Std 
 import Control.Concurrent
+import Core.Type (StoreType(LocalFileStore))
 
 main :: IO ()
 main = runClient sampleReduce

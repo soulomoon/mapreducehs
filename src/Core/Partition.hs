@@ -42,8 +42,8 @@ getDataFromPartition :: forall t k v m. (Serializable2 k v, MonadStore t m) => m
 getDataFromPartition = getDataFromFiles @t $ findTaskFiles @t
 
 -- retrieve raw data
-getAllData :: forall t m. (MonadStore t m) =>  m [String]
-getAllData = getStringsFromFiles @t $ findAllTaskFiles @t
+-- getAllData :: forall t m. (MonadStore t m) =>  m [String]
+-- getAllData = getStringsFromFiles @t $ findAllTaskFiles @t
 
 -- get data from files
 getAllDataTup :: forall t k v m. (Serializable2 k v, MonadStore t m) =>  m [(k, v)]
@@ -51,7 +51,7 @@ getAllDataTup = getDataFromFiles @t (findAllTaskFiles @t)
 
 divides :: forall t k v m. (PartitionConstraint t m, Serializable2 k v) => [(k, v)] -> m (Map Int [(k, v)])
 divides xs = do
-  n <- workerCount
+  n <- workerCount @t
   -- liftIO $ print n
   return $ toMap $ map (\e@(k, _) -> (hash k `mod` n, e)) xs
 

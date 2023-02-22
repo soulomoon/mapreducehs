@@ -18,9 +18,18 @@ import Control.Monad.State
 import Impl
 import Core.Std
 import Core.Store
+import Core.Type (StoreType(MemoryStore, LocalFileStore))
+import Core.MapReduceC (E(E), naiveEvaluator)
 
 main :: IO ()
 main = runMapReduce @'LocalFileStore runLocalWorker
+
+sampleEval :: IO ()
+sampleEval = do
+  print sample
+  x <-  naiveEvaluator sample sampleReduce
+  print x
+  return ()
 
 -- handle the work locally
 runLocalWorker :: Chan Context -> Chan Context -> IO ()

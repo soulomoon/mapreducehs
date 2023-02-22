@@ -5,3 +5,5 @@ data EvaluateType
   | LocalMultipleWorkers
 
 data WorkerType = VirtualWorker | ActualWorker
+
+data StoreType = MemoryStore | LocalFileStore

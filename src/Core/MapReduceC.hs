@@ -62,6 +62,12 @@ type Trans m k v = (Evaluator m k v -> Evaluator m k v) -> (Evaluator m k v -> E
 fixM :: (Evaluator m k v -> Evaluator m k v) -> Evaluator m k v
 fixM ev = ev (fixM ev)
 
+naiveEvaluator :: (Monad m, Serializable2 k3 v3, Serializable2 k1 v1) => [(k1, v1)] -> MapReduce k1 v1 k3 v3 -> m [(k3, v3)]
+naiveEvaluator d action = naiveEvaluator' (E d action)
+
+naiveEvaluator' :: (Monad m, Serializable2 k v) => Evaluator m k v
+naiveEvaluator' = fixM evaluateF
+
 -- small step evaluation
 evaluateOne :: E k3 v3 -> Either (E k3 v3) [(k3, v3)]
 evaluateOne (E x MrOut) = Right x

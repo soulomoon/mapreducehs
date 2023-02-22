@@ -6,16 +6,21 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE UndecidableInstances #-}
 module Impl where
 
 import Core.MapReduceC
 import Core.Context
 import Data.List
 import Control.Concurrent (Chan, writeChan, writeList2Chan, getChanContents, threadDelay, newChan, forkIO)
-import Core.Store (StoreType(LocalFileStore), MonadStore (cleanUp))
+import Core.Store (MonadStore (cleanUp))
 import Core.Partition (sendDataToPartitions, PartitionConstraint)
-import Core.Std (runCtx, sendResult)
+import Core.Std (runCtx, sendResult, getResult)
 import Control.Monad.State
+import Data.Map (Map)
+import Core.Type (StoreType)
 
 mapper :: (String, String) -> [(Char, Int)]
 mapper (_, v) = map (\xs -> (head xs, length xs)) $ group v
@@ -67,6 +72,24 @@ splitNum = 5
 myPort :: String
 myPort = "3000"
 
+newtype ContextState m = ContextState (StateT (Context, Map String String) IO m)
+
+-- runMapReduceMap :: forall (t::StoreType) . (MonadStore t (StateT (Map String String) IO)) => (Chan Context -> Chan Context -> IO ()) -> IO ()
+-- runMapReduceMap serverRun = do
+--   let len = pipeLineLength sampleReduce
+--   putStrLn $ "mr length: " ++ show len
+--   cIn <- newChan
+--   cOut <- newChan
+--   let cxt = genContext splitNum sampleReduce
+--   -- send  data to the all possible partitions to initialize the test
+--   runCtx (Context splitNum 0 "task" "tempdata" 0) $ cleanUp @t >> sendDataToPartitions @t sample
+--   -- the server to send the task to the workers
+--   _ <- forkIO (serverRun cIn cOut)
+--   -- send all tasks
+--   sendTask cIn cOut cxt
+--   -- collect all the result
+--   runCtx (Context splitNum len "task" "tempdata" 0) $ sendResult @t sampleReduce
+
 runMapReduce :: forall (t::StoreType) . (MonadStore t (StateT Context IO)) => (Chan Context -> Chan Context -> IO ()) -> IO ()
 runMapReduce serverRun = do
   let len = pipeLineLength sampleReduce
@@ -82,3 +105,9 @@ runMapReduce serverRun = do
   sendTask cIn cOut cxt
   -- collect all the result
   runCtx (Context splitNum len "task" "tempdata" 0) $ sendResult @t sampleReduce
+
+runMapReduceAndGetResult :: forall (t::StoreType) . (MonadStore t (StateT Context IO)) => (Chan Context -> Chan Context -> IO ()) -> IO [(Char, Int)]
+runMapReduceAndGetResult serverRun = do
+  let len = pipeLineLength sampleReduce
+  _ <- runMapReduce @t serverRun
+  runCtx (Context splitNum len "task" "tempdata" 0) $ getResult @t sampleReduce
