@@ -11,7 +11,8 @@ module Main where
 import ImplServer
 import Core.Type (StoreType(LocalFileStore))
 import Impl
+import Control.Monad (void)
 
 
 main :: IO ()
-main = runMapReduce @'LocalFileStore sampleReduce runServer
+main = void $ runMapReduce @'LocalFileStore sample sampleReduce runServer

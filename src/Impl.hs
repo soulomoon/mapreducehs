@@ -14,7 +14,7 @@ module Impl where
 import Core.MapReduceC
 import Core.Context
 import Data.List
-import Control.Concurrent (Chan, writeChan, writeList2Chan, getChanContents, threadDelay, newChan, forkIO)
+import Control.Concurrent (Chan, writeChan, writeList2Chan, getChanContents, threadDelay, newChan, forkIO, ThreadId, killThread, forkFinally)
 import Core.Store (MonadStore (cleanUp))
 import Core.Partition (sendDataToPartitions, PartitionConstraint)
 import Core.Std (runCtx, sendResult, getResult)
@@ -85,14 +85,19 @@ runMapReduce s1 mr serverRun = do
   -- send  data to the all possible partitions to initialize the test
   runCtx (Context splitNum 0 "task" "tempdata" 0) $ cleanUp @t >> sendDataToPartitions @t s1
   -- the server to send the task to the workers
-  _ <- forkIO (serverRun cIn cOut)
+  tid <- forkFinally (serverRun cIn cOut) (const $ print "server done")
+  -- tid <- forkIO (serverRun cIn cOut)
   -- send all tasks
   sendTask cIn cOut cxt
   -- collect all the result
   runCtx (Context splitNum len "task" "tempdata" 0) $ sendResult @t mr
+  -- threadDelay 2000000
+  -- async kill to release the resource
+  killThread tid
 
 runMapReduceAndGetResult :: forall (t::StoreType) k1 v1 k2 v2 . (Serializable2 k1 v1, Serializable2 k2 v2, MonadStore t (StateT Context IO)) => [(k1, v1)] -> MapReduce k1 v1 k2 v2 -> (Chan Context -> Chan Context -> IO ()) -> IO [(k2, v2)]
 runMapReduceAndGetResult s1 mr serverRun = do
   let len = pipeLineLength mr
-  _ <- runMapReduce @t s1 mr serverRun
+  runMapReduce @t s1 mr serverRun
   runCtx (Context splitNum len "task" "tempdata" 0) $ getResult @t mr
+

@@ -23,6 +23,8 @@ import ImplServer (runServer)
 import Test.Tasty
 import Test.Tasty.QuickCheck as QC
 import Test.Tasty.HUnit
+import Generator
+import Test.QuickCheck (maxSuccess, quickCheckWith, stdArgs)
 
 foo :: Int -> (Int, Int)
 foo 3 = (1, 2)
@@ -34,34 +36,18 @@ partA _ = pure (5, 3) -- change to (5,3) if you want the tests to succeed
 partB :: Int -> IO Bool
 partB x = pure (x == 3)
 
-sendSignalWith begin x = do
-  writeChan begin ()
-  print "signal sent"
-  x
-  
-waitSignalWith begin x = do
-  _ <- readChan begin
-  print "signal received"
-  threadDelay 200000
-  x
   
 
 sample1 :: [([Char], [Char])]
 sample1 = [("", "hello")]
 
-testServer :: [([Char], [Char])] -> MapReduce [Char] [Char] Char Int -> IO [(Char, Int)]
-testServer s1 mr = do
-  begin <- newChan
-  -- wait for the parent
-  _ <- forkIO $ waitSignalWith begin $ runClient mr
-  sendSignalWith begin $ runMapReduceAndGetResult @'LocalFileStore s1 mr runServer
 
 
-test1, test2 :: Test
-test1 = TestCase $ do
-  a <- sort <$> testServer sample1 sampleReduce
-  b <- sort <$> naiveEvaluator sample1 sampleReduce
-  assertEqual "testServer" b a
+test2 :: Test
+-- test1 = TestCase $ do
+--   a <- sort <$> testServer sample1 sampleReduce
+--   b <- sort <$> naiveEvaluator sample1 sampleReduce
+--   assertEqual "testServer" b a
 -- test1 = TestCase $ assertEqual "for (foo 3)," (1 :: Integer) (1 :: Integer)
 test2 = TestCase $ do
   (x, y) <- partA 3
@@ -69,5 +55,11 @@ test2 = TestCase $ do
   b <- partB y
   assertBool ("(partB " ++ show y ++ ") failed") b
 
+-- a = quickCheckWith stdArgs { maxSuccess = 5000 } 
+
+test3 :: TestTree
+test3 = testProperty "Server client work together" testServerProperty
 main :: IO ()
-main = runTestTTAndExit (TestList [TestLabel "test1" test1])
+main = defaultMain tests
+tests :: TestTree
+tests = testGroup "Tests" [test3]

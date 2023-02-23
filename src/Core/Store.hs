@@ -16,7 +16,7 @@ import Control.Monad.Cont
 import Core.Context
 import Core.Serialize
 import Data.List (isSuffixOf)
-import System.Directory (listDirectory, createDirectory, removeDirectoryRecursive)
+import System.Directory (listDirectory, createDirectory, removeDirectoryRecursive, doesDirectoryExist)
 import System.IO
 import Control.Monad.State
 import Data.Map (Map, insert)
@@ -72,7 +72,8 @@ instance (MonadContext 'LocalFileStore m, MonadIO m) => MonadStore 'LocalFileSto
   --   liftIO (mapM readFile files)
   cleanUp = do
     dir <- dirName @'LocalFileStore
-    liftIO $ removeDirectoryRecursive dir
+    e <- liftIO $ doesDirectoryExist dir
+    if e then liftIO (removeDirectoryRecursive dir) else return ()
     liftIO $ createDirectory dir
     return ()
 

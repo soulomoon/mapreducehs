@@ -25,19 +25,23 @@ import Core.Type (StoreType(LocalFileStore))
 -- keep doing work
 runClient :: (Serializable2 k1 v1, Serializable2 k3 v3) => MapReduce k1 v1 k3 v3 -> IO ()
 runClient mr = do
-  b <- goOne mr
+  b <- goOne myPort mr
   when b $ runClient mr
 
-goOne  :: (Serializable2 k1 v1, Serializable2 k3 v3) => MapReduce k1 v1 k3 v3 -> IO Bool
-goOne mr =
-  runTCPClient "127.0.0.1" myPort $ \s -> do
+runClientPort port mr = do
+  b <- goOne port mr 
+  when b $ runClient mr
+
+goOne  :: (Serializable2 k1 v1, Serializable2 k3 v3) => ServiceName -> MapReduce k1 v1 k3 v3 -> IO Bool
+goOne port mr =
+  runTCPClient "127.0.0.1" port $ \s -> do
   putStrLn "getting"
   msg <- recv s 10240
   -- get the work
   let t = decode msg
   print t
   -- do the work for 1 second
-  _ <- threadDelay 100000
+  _ <- threadDelay 1000
   if validWork t
     then runTask @'LocalFileStore mr t >> sendAll s (encode t) >> return True
     else return False
