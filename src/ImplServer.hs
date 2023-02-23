@@ -18,12 +18,13 @@ import Control.Monad.State
 import Impl
 import Core.Type (StoreType(LocalFileStore))
 
+runServer =  runServerPort myPort
 
 -- handle the exception here if not receiving the result
 -- handle the work through tcp network
-runServer :: Chan Context -> Chan Context -> IO ()
-runServer cIn cOut = do
-  runTCPServer Nothing myPort talk
+runServerPort :: ServiceName -> Chan Context -> Chan Context -> IO ()
+runServerPort port cIn cOut = do
+  runTCPServer Nothing port talk
   where
     talk s = do
       putStrLn "Client connected, sending task:"
