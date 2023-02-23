@@ -14,13 +14,13 @@ module Impl where
 import Core.MapReduceC
 import Core.Context
 import Data.List
-import Control.Concurrent (Chan, writeChan, writeList2Chan, getChanContents, threadDelay, newChan, killThread, forkFinally, readChan)
+import Control.Concurrent (Chan, writeChan, writeList2Chan, getChanContents, threadDelay, newChan, killThread, forkFinally, readChan, MVar, newMVar, modifyMVar_)
 import Core.Store (MonadStore (cleanUp))
 import Core.Partition (sendDataToPartitions, PartitionConstraint)
 import Core.Std (runCtx, sendResult, getResult)
 import Control.Monad.State
 import Data.Map (Map)
-import Core.Type (StoreType)
+import Core.Type 
 import Core.Serialize (Serializable2)
 import Core.Logging
 
@@ -50,23 +50,28 @@ genContext nWorker mr =
 validWork :: Context -> Bool
 validWork = (>= 0) . _taskIdL
 
+invalidContext :: Context
+invalidContext = Context (-1) (-1) "task" "tempdata" (-1)
 -- ignoring the error handling here, since chan is not likely to fail
 -- keep putting task to the out channel
 -- and read the result from the in channel
-sendTask ::  Chan Context -> Chan Context -> [[Context]] -> IO ()
--- invalid task to end the worker
-sendTask cIn cOut [] = do 
-  writeChan cOut (Context (-1) (-1) "task" "tempdata" (-1)) 
-  void $ readChan cIn
+sendTask :: ServerContext -> [[Context]] -> IO ()
+-- setting the server state to Stopped, then send invalid context to end the workers
+sendTask sc [] = do 
+  -- sending invalid context to end the and set the server state to Stopped
+  writeChan (cOut sc) invalidContext  
+  -- read back from the channel to wait for the worker to end
+  void $ readChan (cIn sc) 
 -- >> threadDelay 1000
-sendTask cIn cOut (x:xs) = do
+sendTask sc (x:xs) = do
   logg "putting to chan"
-  writeList2Chan cOut x
+  writeList2Chan (cOut sc) x
   logg "putting to chan done"
   -- take all of the send task back from the channel
-  result <- take (length x) <$> getChanContents cIn
+  -- todo check them if matching
+  result <- take (length x) <$> getChanContents (cIn sc)
   logg $ show result
-  sendTask cIn cOut xs
+  sendTask sc xs
 
 
 splitNum :: Int
@@ -77,26 +82,25 @@ myPort = "3000"
 
 newtype ContextState m = ContextState (StateT (Context, Map String String) IO m)
 
-runMapReduce :: forall (t::StoreType) k1 v1 k2 v2 . (Serializable2 k1 v1, Serializable2 k2 v2, MonadStore t (StateT Context IO)) => [(k1, v1)] -> MapReduce k1 v1 k2 v2 -> (Chan Context -> Chan Context -> IO ()) -> IO ()
+runMapReduce :: forall (t::StoreType) k1 v1 k2 v2 . (Serializable2 k1 v1, Serializable2 k2 v2, MonadStore t (StateT Context IO)) => [(k1, v1)] -> MapReduce k1 v1 k2 v2 -> (ServerContext -> IO ()) -> IO ()
 runMapReduce s1 mr serverRun = do
   let len = pipeLineLength mr
   logg $ "mr length: " ++ show len
-  cIn <- newChan
-  cOut <- newChan
+  sc <- ServerContext <$> newChan <*> newChan <*> newMVar Running
   let cxt = genContext splitNum mr
   -- send  data to the all possible partitions to initialize the test
   runCtx (Context splitNum 0 "task" "tempdata" 0) $ cleanUp @t >> sendDataToPartitions @t s1
   -- the server to send the task to the workers
-  tid <- forkFinally (serverRun cIn cOut) (const $ logg "server done")
+  tid <- forkFinally (serverRun sc) (const $ logg "server done")
   -- tid <- forkIO (serverRun cIn cOut)
   -- send all tasks
-  sendTask cIn cOut cxt
+  sendTask sc cxt
   -- collect all the result
   runCtx (Context splitNum len "task" "tempdata" 0) $ sendResult @t mr
   -- async kill to release the resource
   killThread tid
 
-runMapReduceAndGetResult :: forall (t::StoreType) k1 v1 k2 v2 . (Serializable2 k1 v1, Serializable2 k2 v2, MonadStore t (StateT Context IO)) => [(k1, v1)] -> MapReduce k1 v1 k2 v2 -> (Chan Context -> Chan Context -> IO ()) -> IO [(k2, v2)]
+runMapReduceAndGetResult :: forall (t::StoreType) k1 v1 k2 v2 . (Serializable2 k1 v1, Serializable2 k2 v2, MonadStore t (StateT Context IO)) => [(k1, v1)] -> MapReduce k1 v1 k2 v2 -> (ServerContext -> IO ()) -> IO [(k2, v2)]
 runMapReduceAndGetResult s1 mr serverRun = do
   let len = pipeLineLength mr
   runMapReduce @t s1 mr serverRun

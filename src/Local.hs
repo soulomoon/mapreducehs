@@ -21,6 +21,7 @@ import Core.Store
 import Core.Type (StoreType(MemoryStore, LocalFileStore))
 import Core.MapReduceC (E(E), naiveEvaluator)
 import Core.Logging
+import Core.Type
 
 main :: IO ()
 main = void $ runMapReduce @'LocalFileStore sample sampleReduce  runLocalWorker
@@ -33,19 +34,19 @@ sampleEval = do
   return ()
 
 -- handle the work locally
-runLocalWorker :: Chan Context -> Chan Context -> IO ()
-runLocalWorker cIn cOut = do
-  context <- readChan cOut
+runLocalWorker :: ServerContext -> IO ()
+runLocalWorker sc = do
+  context <- readChan (cOut sc)
   when (validWork context) $ 
     runTask @'LocalFileStore sampleReduce context 
-    >> writeChan cIn context 
-    >> runLocalWorker cIn cOut
+    >> writeChan (cIn sc) context 
+    >> runLocalWorker sc
 
 -- sample worker
-runAllWorkers ::  Chan Context -> Chan Context -> IO ()
-runAllWorkers cIn cOut = do
+runAllWorkers ::  ServerContext -> IO ()
+runAllWorkers sc = do
   logg "starting workers"
-  replicateM_ 5 $ forkIO $ runLocalWorker cIn cOut
+  replicateM_ 5 $ forkIO $ runLocalWorker sc 
 
 
 -- handle the exception here if not receiving the result

@@ -8,7 +8,7 @@
 
 module ImplServer where
 
-import Control.Concurrent (forkFinally, readChan, Chan, writeChan)
+import Control.Concurrent (forkFinally, readChan, Chan, writeChan, readMVar, takeMVar, putMVar)
 import qualified Control.Exception as E
 import Data.Binary (encode, decode)
 import Network.Socket
@@ -16,29 +16,52 @@ import Network.Socket.ByteString.Lazy (sendAll, recv)
 import Core.Context
 import Control.Monad.State
 import Impl
+import Core.Type
 import Core.Logging
 
-runServer :: Chan Context -> Chan Context -> IO ()
+runServer :: ServerContext -> IO ()
 runServer =  runServerPort myPort
 
 -- handle the exception here if not receiving the result
 -- handle the work through tcp network
-runServerPort :: ServiceName -> Chan Context -> Chan Context -> IO ()
-runServerPort port cIn cOut = do
+runServerPort :: ServiceName -> ServerContext -> IO ()
+runServerPort port sc = do
   runTCPServer Nothing port talk
   where
     talk s = do
       logg "Client connected, sending task:"
-      context <- readChan cOut
-      sendAll s (encode context)
-      -- only wait for the result when the task is valid
-      -- otherwise, just send the next task
-      -- when (validWork context)
-      -- todo should timeout here
-      response <- decode <$> recv s 10240
-      -- todo should verify the response and do error handling
-      logg $ show $ context == response
-      writeChan cIn response
+      -- critical section ensure only one is reading the task chan
+      -- if fail here should be recovered
+      ss <- takeMVar (serverState sc)
+      case ss of 
+        Running -> do
+          context <- readChan (cOut sc)
+          -- critical section 
+          -- first one receive the task, should
+          -- set the state to stopped to inform other workers
+          putMVar (serverState sc) $ if validWork context then Running else Stopped
+
+          sendAll s (encode context)
+          -- only wait for the result when the task is valid
+          -- otherwise, just send the next task
+          -- when (validWork context)
+          -- todo should timeout here
+          response <- decode <$> recv s 10240
+          -- todo should verify the response and do error handling
+          logg $ show $ context == response
+          writeChan (cIn sc) response
+
+        Stopped -> do
+          putMVar (serverState sc) ss
+          -- send invalid context to inform the worker to stop
+          sendAll s (encode invalidContext)
+          -- only wait for the result when the task is valid
+          -- otherwise, just send the next task
+          -- when (validWork context)
+          -- todo should timeout here
+          response <- decode <$> recv s 10240
+          -- todo should verify the response and do error handling
+          writeChan (cIn sc) response
 
 
 

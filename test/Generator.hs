@@ -22,6 +22,7 @@ import Test.Tasty.HUnit (assertEqual)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 import Network.Socket (ServiceName)
 import Core.Logging
+import Core.Type
 
 newtype MapContextGen = MapContextGen  [[Context]]
 
@@ -73,7 +74,7 @@ testServer port s1 mr = do
 
 
 testServerProperty :: MRdata -> MapReduce [Char] [Char] Char Int -> Property
-testServerProperty (MRdata dat) mr = withMaxSuccess 5 $ monadicIO test
+testServerProperty (MRdata dat) mr = withMaxSuccess 15 $ monadicIO test
     where test = do 
             a <- run $ sort <$> testServer "3000" dat mr
             b <- run $ sort <$> naiveEvaluator dat mr

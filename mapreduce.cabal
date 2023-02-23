@@ -48,6 +48,7 @@ executable Worker
     , network
     , bytestring
     , binary
+    , async
   main-is: Worker.hs
 
 

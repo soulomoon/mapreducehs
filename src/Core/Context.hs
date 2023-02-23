@@ -17,7 +17,7 @@ module Core.Context where
 import Control.Monad.RWS
 import Data.Binary (Binary)
 import GHC.Generics (Generic)
-import Core.Type (StoreType (LocalFileStore, MemoryStore))
+import Core.Type (StoreType (LocalFileStore, MemoryStore), Context(..))
 import Data.Map (Map)
 
 class (Monad m) => MonadContext (t :: StoreType) m where
@@ -51,13 +51,6 @@ instance (Monad m, MonadState (Context, Map String String) m, MonadIO m) => Mona
   incrTaskId = modify (\(x, y) -> (x {_taskIdL = _taskIdL x + 1}, y))
 
 
-data Context = Context { 
-    _workerCountL :: Int,
-    _taskIdL :: Int,
-    _spaceNameL :: String,
-    _dirNameL :: String,
-    _partitionIdL :: Int
-} deriving (Show, Generic, Binary, Eq)
 
 
 -- makeLenses ''Context

@@ -42,9 +42,10 @@ goOne port mr =
   let t = decode msg
   print t
   -- do the work for 1 second
-  _ <- threadDelay 1000
+  -- _ <- threadDelay 1000000
   if validWork t
     then runTask @'LocalFileStore mr t >> sendAll s (encode t) >> return True
+    -- send back and end
     else sendAll s (encode t) >> return False
 
 -- from the "network-run" package.
