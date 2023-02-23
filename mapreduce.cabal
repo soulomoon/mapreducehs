@@ -64,6 +64,7 @@ executable Local
     Core.Type
     Core.Std
     Core.Store
+    Core.Logging
     Impl
   build-depends:
       base            >=4.12  && <5
@@ -91,6 +92,7 @@ executable Server
     Core.Type
     Core.Std
     Core.Store
+    Core.Logging
     Impl
   build-depends:
       base            >=4.12  && <5
@@ -119,6 +121,7 @@ Test-Suite Test
     Core.Type
     Core.Std
     Core.Store
+    Core.Logging
     Impl
   build-depends:
       base            >=4.12  && <5

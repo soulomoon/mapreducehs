@@ -17,6 +17,7 @@ import Core.Context
 import Control.Monad.State
 import Impl
 import Core.Type (StoreType(LocalFileStore))
+import Core.Logging
 
 runServer =  runServerPort myPort
 
@@ -27,17 +28,17 @@ runServerPort port cIn cOut = do
   runTCPServer Nothing port talk
   where
     talk s = do
-      putStrLn "Client connected, sending task:"
+      logg "Client connected, sending task:"
       context <- readChan cOut
       sendAll s (encode context)
       -- only wait for the result when the task is valid
       -- otherwise, just send the next task
       when (validWork context)
         (do
-          -- should timeout here
+          -- todo should timeout here
           response <- decode <$> recv s 10240
-          -- should verify the response and do error handling
-          print $ context == response
+          -- todo should verify the response and do error handling
+          logg $ show $ context == response
           writeChan cIn response)
 
 

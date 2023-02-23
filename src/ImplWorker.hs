@@ -20,6 +20,7 @@ import Control.Monad.Cont
 import Core.Std 
 import Control.Concurrent
 import Core.Type (StoreType(LocalFileStore))
+import Core.Logging
 
 
 -- keep doing work
@@ -35,7 +36,7 @@ runClientPort port mr = do
 goOne  :: (Serializable2 k1 v1, Serializable2 k3 v3) => ServiceName -> MapReduce k1 v1 k3 v3 -> IO Bool
 goOne port mr =
   runTCPClient "127.0.0.1" port $ \s -> do
-  putStrLn "getting"
+  logg "getting"
   msg <- recv s 10240
   -- get the work
   let t = decode msg

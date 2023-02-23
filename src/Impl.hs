@@ -22,6 +22,7 @@ import Control.Monad.State
 import Data.Map (Map)
 import Core.Type (StoreType)
 import Core.Serialize (Serializable2)
+import Core.Logging
 
 mapper :: (String, String) -> [(Char, Int)]
 mapper (_, v) = map (\xs -> (head xs, length xs)) $ group v
@@ -56,14 +57,12 @@ sendTask ::  Chan Context -> Chan Context -> [[Context]] -> IO ()
 -- invalid task to end the worker
 sendTask _ cOut [] = writeChan cOut (Context (-1) (-1) "task" "tempdata" (-1)) >> threadDelay 1000
 sendTask cIn cOut (x:xs) = do
-  putStrLn "putting to chan"
-  print (length x)
+  logg "putting to chan"
   writeList2Chan cOut x
-  putStrLn "putting to chan done"
+  logg "putting to chan done"
   -- take all of the send task back from the channel
   result <- take (length x) <$> getChanContents cIn
-  print result
-  -- loop
+  logg $ show result
   sendTask cIn cOut xs
 
 
@@ -78,14 +77,14 @@ newtype ContextState m = ContextState (StateT (Context, Map String String) IO m)
 runMapReduce :: forall (t::StoreType) k1 v1 k2 v2 . (Serializable2 k1 v1, Serializable2 k2 v2, MonadStore t (StateT Context IO)) => [(k1, v1)] -> MapReduce k1 v1 k2 v2 -> (Chan Context -> Chan Context -> IO ()) -> IO ()
 runMapReduce s1 mr serverRun = do
   let len = pipeLineLength mr
-  putStrLn $ "mr length: " ++ show len
+  logg $ "mr length: " ++ show len
   cIn <- newChan
   cOut <- newChan
   let cxt = genContext splitNum mr
   -- send  data to the all possible partitions to initialize the test
   runCtx (Context splitNum 0 "task" "tempdata" 0) $ cleanUp @t >> sendDataToPartitions @t s1
   -- the server to send the task to the workers
-  tid <- forkFinally (serverRun cIn cOut) (const $ print "server done")
+  tid <- forkFinally (serverRun cIn cOut) (const $ logg "server done")
   -- tid <- forkIO (serverRun cIn cOut)
   -- send all tasks
   sendTask cIn cOut cxt

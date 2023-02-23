@@ -20,6 +20,7 @@ import Core.Std
 import Core.Store
 import Core.Type (StoreType(MemoryStore, LocalFileStore))
 import Core.MapReduceC (E(E), naiveEvaluator)
+import Core.Logging
 
 main :: IO ()
 main = void $ runMapReduce @'LocalFileStore sample sampleReduce  runLocalWorker
@@ -43,7 +44,7 @@ runLocalWorker cIn cOut = do
 -- sample worker
 runAllWorkers ::  Chan Context -> Chan Context -> IO ()
 runAllWorkers cIn cOut = do
-  print "starting workers"
+  logg "starting workers"
   replicateM_ 5 $ forkIO $ runLocalWorker cIn cOut
 
 

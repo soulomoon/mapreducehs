@@ -21,6 +21,7 @@ import Data.List (sort)
 import Test.Tasty.HUnit (assertEqual)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 import Network.Socket (ServiceName)
+import Core.Logging
 
 newtype MapContextGen = MapContextGen  [[Context]]
 
@@ -77,16 +78,16 @@ testServerProperty (MRdata dat) mr = withMaxSuccess 5 $ monadicIO test
             a <- run $ sort <$> testServer "3000" dat mr
             b <- run $ sort <$> naiveEvaluator dat mr
             let res = b == a
-            run $ print res
+            run $ logg $ show res
             assert res 
 
 sendSignalWith begin x = do
   writeChan begin ()
-  print "signal sent"
+  logg "signal sent"
   x
   
 waitSignalWith begin x = do
   _ <- readChan begin
-  print "signal received"
+  logg "signal received"
   threadDelay 200000
   x
