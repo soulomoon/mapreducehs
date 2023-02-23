@@ -45,7 +45,7 @@ goOne port mr =
   _ <- threadDelay 1000
   if validWork t
     then runTask @'LocalFileStore mr t >> sendAll s (encode t) >> return True
-    else return False
+    else sendAll s (encode t) >> return False
 
 -- from the "network-run" package.
 runTCPClient :: HostName -> ServiceName -> (Socket -> IO a) -> IO a

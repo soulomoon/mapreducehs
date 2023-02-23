@@ -16,9 +16,9 @@ import Network.Socket.ByteString.Lazy (sendAll, recv)
 import Core.Context
 import Control.Monad.State
 import Impl
-import Core.Type (StoreType(LocalFileStore))
 import Core.Logging
 
+runServer :: Chan Context -> Chan Context -> IO ()
 runServer =  runServerPort myPort
 
 -- handle the exception here if not receiving the result
@@ -33,13 +33,13 @@ runServerPort port cIn cOut = do
       sendAll s (encode context)
       -- only wait for the result when the task is valid
       -- otherwise, just send the next task
-      when (validWork context)
-        (do
-          -- todo should timeout here
-          response <- decode <$> recv s 10240
-          -- todo should verify the response and do error handling
-          logg $ show $ context == response
-          writeChan cIn response)
+      -- when (validWork context)
+      -- todo should timeout here
+      response <- decode <$> recv s 10240
+      -- todo should verify the response and do error handling
+      logg $ show $ context == response
+      writeChan cIn response
+
 
 
 -- from the "network-run" package.

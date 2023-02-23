@@ -14,7 +14,7 @@ module Impl where
 import Core.MapReduceC
 import Core.Context
 import Data.List
-import Control.Concurrent (Chan, writeChan, writeList2Chan, getChanContents, threadDelay, newChan, forkIO, ThreadId, killThread, forkFinally)
+import Control.Concurrent (Chan, writeChan, writeList2Chan, getChanContents, threadDelay, newChan, killThread, forkFinally, readChan)
 import Core.Store (MonadStore (cleanUp))
 import Core.Partition (sendDataToPartitions, PartitionConstraint)
 import Core.Std (runCtx, sendResult, getResult)
@@ -55,7 +55,10 @@ validWork = (>= 0) . _taskIdL
 -- and read the result from the in channel
 sendTask ::  Chan Context -> Chan Context -> [[Context]] -> IO ()
 -- invalid task to end the worker
-sendTask _ cOut [] = writeChan cOut (Context (-1) (-1) "task" "tempdata" (-1)) >> threadDelay 1000
+sendTask cIn cOut [] = do 
+  writeChan cOut (Context (-1) (-1) "task" "tempdata" (-1)) 
+  void $ readChan cIn
+-- >> threadDelay 1000
 sendTask cIn cOut (x:xs) = do
   logg "putting to chan"
   writeList2Chan cOut x
@@ -90,7 +93,6 @@ runMapReduce s1 mr serverRun = do
   sendTask cIn cOut cxt
   -- collect all the result
   runCtx (Context splitNum len "task" "tempdata" 0) $ sendResult @t mr
-  -- threadDelay 2000000
   -- async kill to release the resource
   killThread tid
 
