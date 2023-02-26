@@ -18,6 +18,7 @@ import Control.Monad.State
 import Impl
 import Core.Type
 import Core.Logging
+import Control.Exception (onException, try, SomeException)
 
 runServer :: ServerContext -> IO ()
 runServer =  runServerPort myPort
@@ -31,7 +32,6 @@ runServerPort port sc = do
     talk s = do
       logg "Client connected, sending task:"
       -- critical section ensure only one is reading the task chan
-      -- if fail here should be recovered
       ss <- takeMVar (serverState sc)
       case ss of 
         Running -> do
@@ -40,16 +40,22 @@ runServerPort port sc = do
           -- first one receive the task, should
           -- set the state to stopped to inform other workers
           putMVar (serverState sc) $ if validWork context then Running else Stopped
+          res <- try ( do
+            sendAll s (encode context)
+            -- only wait for the result when the task is valid
+            -- otherwise, just send the next task
+            -- when (validWork context)
+            -- todo should timeout here
+            response <- decode <$> recv s 10240
+            -- todo should verify the response and do error handling
+            logg $ show $ context == response
+            return response) 
+          case res of
+              Right response -> writeChan (cIn sc) response
+              Left (ex :: SomeException) -> do
+                logg $ show ex
+                writeChan (cIn sc) context -- reschedule the task
 
-          sendAll s (encode context)
-          -- only wait for the result when the task is valid
-          -- otherwise, just send the next task
-          -- when (validWork context)
-          -- todo should timeout here
-          response <- decode <$> recv s 10240
-          -- todo should verify the response and do error handling
-          logg $ show $ context == response
-          writeChan (cIn sc) response
 
         Stopped -> do
           putMVar (serverState sc) ss
