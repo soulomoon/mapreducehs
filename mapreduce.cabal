@@ -37,6 +37,8 @@ executable Worker
     Core.Std
     Core.Store
     Impl
+    ImplServer
+    ImplWorker
   build-depends:
       base            >=4.12  && <5
     , text
@@ -67,6 +69,8 @@ executable Local
     Core.Store
     Core.Logging
     Impl
+    ImplServer
+    ImplWorker
   build-depends:
       base            >=4.12  && <5
     , text
@@ -78,6 +82,7 @@ executable Local
     , network
     , bytestring
     , binary
+    , async
   main-is: Local.hs
 
 executable Server
@@ -106,6 +111,7 @@ executable Server
     , network
     , bytestring
     , binary
+    , async
   main-is: Server.hs
 
 Test-Suite Test
@@ -124,6 +130,8 @@ Test-Suite Test
     Core.Store
     Core.Logging
     Impl
+    ImplServer
+    ImplWorker
   build-depends:
       base            >=4.12  && <5
     , text
@@ -138,5 +146,6 @@ Test-Suite Test
     , network
     , tasty
     , tasty-quickcheck
-    , tasty-hunit,
+    , tasty-hunit
+    , async
   main-is: Test.hs

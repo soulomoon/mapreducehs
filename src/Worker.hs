@@ -13,4 +13,4 @@ import ImplWorker
 import Control.Concurrent.Async (mapConcurrently_)
 
 main :: IO ()
-main = mapConcurrently_ runClient (replicate 5 sampleReduce)
+main = runClientPortParallel 5 myPort sampleReduce 

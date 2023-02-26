@@ -64,19 +64,21 @@ instance Arbitrary MRdata where
         v <- elements ["hello", "gogogogogovvv", "opksfasdfdsafa"]
         return $ MRdata [("", v)]
 
-testServer :: ServiceName -> [([Char], [Char])] -> MapReduce [Char] [Char] Char Int -> IO [(Char, Int)]
-testServer port s1 mr = do
+type RunWorker = (ServiceName -> MapReduce [Char] [Char] Char Int -> IO ())
+testServer :: RunWorker -> ServiceName -> [([Char], [Char])] -> MapReduce [Char] [Char] Char Int -> IO [(Char, Int)]
+testServer runWorker port s1 mr = do
   begin <- newChan
   -- wait for the parent
-  _ <- forkIO $ waitSignalWith begin $ runClientPort port mr
+  _ <- forkIO $ waitSignalWith begin $ runWorker port mr
   sendSignalWith begin $ runMapReduceAndGetResult @'LocalFileStore s1 mr (runServerPort port)
 
 
 
-testServerProperty :: MRdata -> MapReduce [Char] [Char] Char Int -> Property
-testServerProperty (MRdata dat) mr = withMaxSuccess 15 $ monadicIO test
+-- test single worker
+testServerProperty :: RunWorker -> MRdata -> MapReduce [Char] [Char] Char Int -> Property
+testServerProperty runWorker (MRdata dat) mr = withMaxSuccess 15 $ monadicIO test
     where test = do 
-            a <- run $ sort <$> testServer "3000" dat mr
+            a <- run $ sort <$> testServer runWorker "3000" dat mr 
             b <- run $ sort <$> naiveEvaluator dat mr
             let res = b == a
             run $ logg $ show res

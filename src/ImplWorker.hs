@@ -21,6 +21,7 @@ import Core.Std
 import Control.Concurrent
 import Core.Type (StoreType(LocalFileStore))
 import Core.Logging
+import Control.Concurrent.Async (mapConcurrently_)
 
 
 -- keep doing work
@@ -32,6 +33,8 @@ runClient mr = do
 runClientPort port mr = do
   b <- goOne port mr 
   when b $ runClient mr
+
+runClientPortParallel n port mr = mapConcurrently_ (runClientPort port) (replicate n mr)
 
 goOne  :: (Serializable2 k1 v1, Serializable2 k3 v3) => ServiceName -> MapReduce k1 v1 k3 v3 -> IO Bool
 goOne port mr =

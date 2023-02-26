@@ -50,12 +50,12 @@ runServerPort port sc = do
             -- todo should verify the response and do error handling
             logg $ show $ context == response
             return response) 
+          -- todo should add test here to see if it worked
           case res of
               Right response -> writeChan (cIn sc) response
               Left (ex :: SomeException) -> do
                 logg $ show ex
                 writeChan (cIn sc) context -- reschedule the task
-
 
         Stopped -> do
           putMVar (serverState sc) ss
