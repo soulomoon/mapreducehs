@@ -5,8 +5,6 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE UndecidableInstances #-}
-{-# LANGUAGE DeriveAnyClass #-}
-{-# LANGUAGE DeriveGeneric #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE KindSignatures #-}
 {-# LANGUAGE DataKinds #-}
@@ -15,8 +13,6 @@
 module Core.Context where
 
 import Control.Monad.RWS
-import Data.Binary (Binary)
-import GHC.Generics (Generic)
 import Core.Type (StoreType (LocalFileStore, MemoryStore), Context(..))
 import Data.Map (Map)
 

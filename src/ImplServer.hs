@@ -2,23 +2,21 @@
 -- {-# LANGUAGE DeriveGeneric #-}
 -- Echo server program
 {-# LANGUAGE ScopedTypeVariables #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds #-}
 
 module ImplServer where
 
-import Control.Concurrent (forkFinally, readChan, Chan, writeChan, readMVar, takeMVar, putMVar)
+import Control.Concurrent (forkFinally, readChan, writeChan, takeMVar, putMVar)
 import qualified Control.Exception as E
 import Data.Binary (encode, decode)
 import Network.Socket
 import Network.Socket.ByteString.Lazy (sendAll, recv)
-import Core.Context
 import Control.Monad.State
 import Impl
 import Core.Type
 import Core.Logging
-import Control.Exception (onException, try, SomeException, throw)
+import Control.Exception (try, SomeException, throw)
 
 runServer :: ServerContext -> IO ()
 runServer =  runServerPort myPort
@@ -50,7 +48,6 @@ runServerPort port sc = do
             -- todo should verify the response and do error handling
             logg $ show $ context == response
             return response) 
-          -- todo should add test here to see if it worked
           case res of
               Right response -> writeChan (cIn sc) response
               Left (ex :: SomeException) -> do

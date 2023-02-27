@@ -1,7 +1,5 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE MonoLocalBinds #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
-{-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE DataKinds #-}
 

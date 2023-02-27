@@ -1,4 +1,3 @@
-{-# LANGUAGE RecordWildCards #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE ScopedTypeVariables #-}
@@ -6,19 +5,13 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds #-}
 module Generator where 
-import Core.Context 
 import Core.MapReduceC
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck
 import Impl 
-import Test.Tasty (TestTree)
-import Test.Tasty.QuickCheck (testProperty)
-import Core.Type (StoreType(LocalFileStore))
 import Control.Concurrent
 import ImplServer
-import ImplWorker
 import Data.List (sort)
-import Test.Tasty.HUnit (assertEqual)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 import Network.Socket (ServiceName)
 import Core.Logging
@@ -82,11 +75,13 @@ testServerProperty runWorker (MRdata dat) mr = withMaxSuccess 15 $ monadicIO tes
             run $ logg $ show res
             assert res 
 
+sendSignalWith :: Chan () -> IO b -> IO b
 sendSignalWith begin x = do
   writeChan begin ()
   logg "signal sent"
   x
   
+waitSignalWith :: Chan a -> IO b -> IO b
 waitSignalWith begin x = do
   _ <- readChan begin
   logg "signal received"

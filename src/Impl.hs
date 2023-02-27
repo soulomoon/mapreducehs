@@ -12,11 +12,10 @@
 module Impl where
 
 import Core.MapReduceC
-import Core.Context
 import Data.List
-import Control.Concurrent (Chan, writeChan, writeList2Chan, getChanContents, threadDelay, newChan, killThread, forkFinally, readChan, MVar, newMVar, modifyMVar_)
+import Control.Concurrent (writeChan, writeList2Chan, getChanContents, newChan, killThread, forkFinally, readChan, newMVar)
 import Core.Store (MonadStore (cleanUp))
-import Core.Partition (sendDataToPartitions, PartitionConstraint)
+import Core.Partition (sendDataToPartitions)
 import Core.Std (runCtx, sendResult, getResult)
 import Control.Monad.State
 import Data.Map (Map)
