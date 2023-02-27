@@ -18,7 +18,7 @@ import Control.Monad.State
 import Impl
 import Core.Type
 import Core.Logging
-import Control.Exception (onException, try, SomeException)
+import Control.Exception (onException, try, SomeException, throw)
 
 runServer :: ServerContext -> IO ()
 runServer =  runServerPort myPort
@@ -56,6 +56,7 @@ runServerPort port sc = do
               Left (ex :: SomeException) -> do
                 logg $ show ex
                 writeChan (cIn sc) context -- reschedule the task
+                throw ex -- now rethrow the exception
 
         Stopped -> do
           putMVar (serverState sc) ss

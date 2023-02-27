@@ -18,7 +18,7 @@ import Core.Serialize
 import Core.MapReduceC
 import Core.Std (runTask)
 import Data.List (sort)
-import ImplWorker (runClient, runClientPort, runClientPortParallel)
+import ImplWorker (runClient, runClientPort, runClientPortParallel, runTaskLocal)
 import ImplServer (runServer)
 import Test.Tasty
 import Test.Tasty.QuickCheck as QC
@@ -36,12 +36,8 @@ partA _ = pure (5, 3) -- change to (5,3) if you want the tests to succeed
 partB :: Int -> IO Bool
 partB x = pure (x == 3)
 
-  
-
 sample1 :: [([Char], [Char])]
 sample1 = [("", "hello")]
-
-
 
 test2 :: Test
 -- test1 = TestCase $ do
@@ -58,10 +54,11 @@ test2 = TestCase $ do
 -- a = quickCheckWith stdArgs { maxSuccess = 5000 } 
 
 testSingleClient :: TestTree
-testSingleClient = testProperty "Server with single client" (testServerProperty runClientPort)
+testSingleClient = testProperty "Server with single client" (testServerProperty (runClientPort runTaskLocal))
 
 testMultipleClients :: TestTree
-testMultipleClients = testProperty "Server with multiple clients" (testServerProperty (runClientPortParallel 5))
+testMultipleClients = testProperty "Server with multiple clients" (testServerProperty (runClientPortParallel 5 runTaskLocal))
+
 main :: IO ()
 main = defaultMain tests
 tests :: TestTree

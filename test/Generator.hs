@@ -72,8 +72,6 @@ testServer runWorker port s1 mr = do
   _ <- forkIO $ waitSignalWith begin $ runWorker port mr
   sendSignalWith begin $ runMapReduceAndGetResult @'LocalFileStore s1 mr (runServerPort port)
 
-
-
 -- test single worker
 testServerProperty :: RunWorker -> MRdata -> MapReduce [Char] [Char] Char Int -> Property
 testServerProperty runWorker (MRdata dat) mr = withMaxSuccess 15 $ monadicIO test
