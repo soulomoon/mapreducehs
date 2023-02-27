@@ -48,6 +48,7 @@ executable Worker
     , hashable
     , directory
     , network
+    , random
     , bytestring
     , binary
     , async
@@ -83,6 +84,7 @@ executable Local
     , bytestring
     , binary
     , async
+    , random
   main-is: Local.hs
 
 executable Server
@@ -112,6 +114,7 @@ executable Server
     , bytestring
     , binary
     , async
+    , random
   main-is: Server.hs
 
 Test-Suite Test
@@ -148,4 +151,5 @@ Test-Suite Test
     , tasty-quickcheck
     , tasty-hunit
     , async
+    , random
   main-is: Test.hs

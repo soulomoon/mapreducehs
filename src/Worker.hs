@@ -12,4 +12,5 @@ import Impl
 import ImplWorker
 
 main :: IO ()
-main = runClientPortParallel 5 runTaskLocal myPort sampleReduce 
+main = runClientPort runTaskLocalWithDrop myPort sampleReduce 
+-- main = runClientPortParallel 5 runTaskLocal myPort sampleReduce 

@@ -55,7 +55,7 @@ runServerPort port sc = do
               Right response -> writeChan (cIn sc) response
               Left (ex :: SomeException) -> do
                 logg $ show ex
-                writeChan (cIn sc) context -- reschedule the task
+                writeChan (cOut sc) context -- reschedule the task
                 throw ex -- now rethrow the exception
 
         Stopped -> do

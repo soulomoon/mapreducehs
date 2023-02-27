@@ -2,29 +2,13 @@
 {-# LANGUAGE DataKinds #-}
 module Main where
 
-import Test.HUnit (Test(..), runTestTTAndExit)
-import Core.Type (StoreType(LocalFileStore))
-import Impl (runMapReduce)
+import Test.HUnit (Test(..))
 
-import Control.Concurrent (forkFinally, readChan, Chan, writeChan, forkIO, threadDelay, newChan)
-import qualified Control.Exception as E
-import Data.Binary (encode, decode)
-import Network.Socket
-import Network.Socket.ByteString.Lazy (sendAll, recv)
-import Core.Context
-import Control.Monad.State
-import Impl
-import Core.Serialize
-import Core.MapReduceC
-import Core.Std (runTask)
-import Data.List (sort)
-import ImplWorker (runClient, runClientPort, runClientPortParallel, runTaskLocal)
-import ImplServer (runServer)
+import ImplWorker (runClientPort, runClientPortParallel, runTaskLocal, runTaskLocalWithDrop)
 import Test.Tasty
 import Test.Tasty.QuickCheck as QC
 import Test.Tasty.HUnit
 import Generator
-import Test.QuickCheck (maxSuccess, quickCheckWith, stdArgs)
 
 foo :: Int -> (Int, Int)
 foo 3 = (1, 2)
@@ -59,7 +43,11 @@ testSingleClient = testProperty "Server with single client" (testServerProperty 
 testMultipleClients :: TestTree
 testMultipleClients = testProperty "Server with multiple clients" (testServerProperty (runClientPortParallel 5 runTaskLocal))
 
+testClientDrop :: TestTree
+testClientDrop = testProperty "Server with clients would drop" (testServerProperty (runClientPortParallel 5 runTaskLocalWithDrop))
+
 main :: IO ()
 main = defaultMain tests
 tests :: TestTree
-tests = testGroup "Server client test" [testSingleClient, testMultipleClients]
+tests = testGroup "Server client test" [testSingleClient, testMultipleClients, testClientDrop]
+
