@@ -17,6 +17,7 @@ import Impl
 import Core.Type
 import Core.Logging
 import Control.Exception (try, SomeException, throw)
+import System.Timeout (timeout)
 
 runServer :: ServerContext -> IO ()
 runServer =  runServerPort myPort
@@ -43,13 +44,16 @@ runServerPort port sc = do
             -- only wait for the result when the task is valid
             -- otherwise, just send the next task
             -- when (validWork context)
-            -- todo should timeout here
-            response <- decode <$> recv s 10240
+            -- should timeout here
+            -- 10 s = 10000000 us
+            -- should test if the timeout is working
+            response <- timeout (workerTimeout sc) $ decode <$> recv s 10240
             -- todo should verify the response and do error handling
-            logg $ show $ context == response
+            logg $ show $ Just context == response
             return response) 
           case res of
-              Right response -> writeChan (cIn sc) response
+              Right (Just response) -> writeChan (cIn sc) response
+              Right _ -> writeChan (cOut sc) context 
               Left (ex :: SomeException) -> do
                 logg $ show ex
                 writeChan (cOut sc) context -- reschedule the task

@@ -85,7 +85,7 @@ runMapReduce :: forall (t::StoreType) k1 v1 k2 v2 . (Serializable2 k1 v1, Serial
 runMapReduce s1 mr serverRun = do
   let len = pipeLineLength mr
   logg $ "mr length: " ++ show len
-  sc <- ServerContext <$> newChan <*> newChan <*> newMVar Running
+  sc <- ServerContext <$> newChan <*> newChan <*> (newMVar Running) <*> (return 10000000)
   let cxt = genContext splitNum mr
   -- send  data to the all possible partitions to initialize the test
   runCtx (Context splitNum 0 "task" "tempdata" 0) $ cleanUp @t >> sendDataToPartitions @t s1
