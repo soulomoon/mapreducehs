@@ -27,6 +27,7 @@ import Control.Monad.State
 import System.Random (randomRIO)
 import Control.Exception
 import GHC.IO (catchException)
+import Control.Concurrent (threadDelay)
 
 type TaskHandler =  forall k1 v1 k3 v3 context. (Serializable2 k1 v1, Serializable2 k3 v3, MonadStore 'LocalFileStore (StateT context IO), Show context) => MapReduce k1 v1 k3 v3 -> context -> IO ()
 
@@ -56,6 +57,10 @@ runTaskLocalWithDrop m n = do
   logg $ "dropping task" ++ show n
   if i > 5 then logg "not dropping" >> runTask @'LocalFileStore m n
   else throw DropException
+
+runTaskLocalWithDelay :: Int -> TaskHandler
+runTaskLocalWithDelay dt m n = threadDelay dt >> runTaskLocal m n 
+
 
 runClientWork  :: (Serializable2 k1 v1, Serializable2 k3 v3) => TaskHandler -> ServiceName -> MapReduce k1 v1 k3 v3 -> IO Bool
 runClientWork runT port mr =

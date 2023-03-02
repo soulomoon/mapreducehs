@@ -20,7 +20,7 @@ data ServerContext = ServerContext
   { 
     cIn :: Chan Context,
     cOut :: Chan Context,
-    serverState :: MVar  ServerState,
+    serverState :: MVar ServerState,
     workerTimeout :: Int
   }
 

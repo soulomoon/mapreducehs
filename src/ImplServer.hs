@@ -30,46 +30,37 @@ runServerPort port sc = do
   where
     talk s = do
       logg "Client connected, sending task:"
+
       -- critical section ensure only one is reading the task chan
       ss <- takeMVar (serverState sc)
-      case ss of 
-        Running -> do
-          context <- readChan (cOut sc)
-          -- critical section 
-          -- first one receive the task, should
-          -- set the state to stopped to inform other workers
-          putMVar (serverState sc) $ if validWork context then Running else Stopped
-          res <- try ( do
-            sendAll s (encode context)
-            -- only wait for the result when the task is valid
-            -- otherwise, just send the next task
-            -- when (validWork context)
-            -- should timeout here
-            -- 10 s = 10000000 us
-            -- should test if the timeout is working
-            response <- timeout (workerTimeout sc) $ decode <$> recv s 10240
-            -- todo should verify the response and do error handling
-            logg $ show $ Just context == response
-            return response) 
-          case res of
-              Right (Just response) -> writeChan (cIn sc) response
-              Right _ -> writeChan (cOut sc) context 
-              Left (ex :: SomeException) -> do
-                logg $ show ex
-                writeChan (cOut sc) context -- reschedule the task
-                throw ex -- now rethrow the exception
+      -- if the server is stopped, just return the invalid context
+      context <- (case ss of 
+        Running -> readChan (cOut sc)
+        Stopped -> return invalidContext)
+      -- first one receive the task, should
+      -- set the state to stopped to inform other workers
+      putMVar (serverState sc) $ if validWork context then Running else Stopped
+      -- critical section done
 
-        Stopped -> do
-          putMVar (serverState sc) ss
-          -- send invalid context to inform the worker to stop
-          sendAll s (encode invalidContext)
-          -- only wait for the result when the task is valid
-          -- otherwise, just send the next task
-          -- when (validWork context)
-          -- todo should timeout here
-          response <- decode <$> recv s 10240
-          -- todo should verify the response and do error handling
-          writeChan (cIn sc) response
+      res <- try ( do
+        sendAll s (encode context)
+        -- only wait for the result when the task is valid
+        -- otherwise, just send the next task
+        -- when (validWork context)
+        -- should timeout here
+        -- 10 s = 10000000 us
+        -- todo should test if the timeout is working
+        response <- timeout (workerTimeout sc) $ decode <$> recv s 10240
+        -- todo should verify the response and do error handling
+        logg $ show $ Just context == response
+        return response) 
+      case res of
+          Right (Just response) -> writeChan (cIn sc) response
+          Right _ -> logg "worker timeout" >> writeChan (cOut sc) context >> throw (userError "worker timeout")
+          Left (ex :: SomeException) -> do
+            logg $ show ex
+            writeChan (cOut sc) context -- reschedule the task
+            throw ex -- now rethrow the exception
 
 
 
