@@ -22,6 +22,7 @@ import Data.Map (Map)
 import Core.Type 
 import Core.Serialize (Serializable2)
 import Core.Logging
+import System.Timeout (timeout)
 
 mapper :: (String, String) -> [(Char, Int)]
 mapper (_, v) = map (\xs -> (head xs, length xs)) $ group v
@@ -60,7 +61,7 @@ sendTask sc [] = do
   -- sending invalid context to end the and set the server state to Stopped
   writeChan (cOut sc) invalidContext  
   -- read back from the channel to wait for the worker to end
-  void $ readChan (cIn sc) 
+  void $ timeout (workerTimeout sc) $ readChan (cIn sc) 
 -- >> threadDelay 1000
 sendTask sc (x:xs) = do
   logg "putting to chan"
@@ -85,7 +86,7 @@ runMapReduce :: forall (t::StoreType) k1 v1 k2 v2 . (Serializable2 k1 v1, Serial
 runMapReduce s1 mr serverRun = do
   let len = pipeLineLength mr
   logg $ "mr length: " ++ show len
-  sc <- ServerContext <$> newChan <*> newChan <*> (newMVar Running) <*> (return 10000000)
+  sc <- ServerContext <$> newChan <*> newChan <*> newMVar Running <*> return 10000000
   let cxt = genContext splitNum mr
   -- send  data to the all possible partitions to initialize the test
   runCtx (Context splitNum 0 "task" "tempdata" 0) $ cleanUp @t >> sendDataToPartitions @t s1
