@@ -21,10 +21,9 @@ maintainer:         fwy996602672@gmail.com
 -- category:
 extra-source-files: CHANGELOG.md
 
-
-
-executable Worker
+common common-dependencies
   default-language: Haskell2010
+
   hs-source-dirs:   src
   ghc-options: -Wall
   other-modules:   
@@ -48,73 +47,26 @@ executable Worker
     , hashable
     , directory
     , network
-    , random
     , bytestring
     , binary
     , async
+    , random
+    , hedis
+    , bytestring
+    , monadIO
+
+
+executable Worker
+  import:  common-dependencies
   main-is: Worker.hs
 
 
 executable Local
-  default-language: Haskell2010
-  hs-source-dirs:   src
-  ghc-options: -Wall
-  other-modules:   
-    Core.MapReduceC
-    Core.Partition
-    Core.Util
-    Core.Serialize
-    Core.Context
-    Core.Type
-    Core.Std
-    Core.Store
-    Core.Logging
-    Impl
-    ImplServer
-    ImplWorker
-  build-depends:
-      base            >=4.12  && <5
-    , text
-    , mtl
-    , containers
-    -- , lens
-    , hashable
-    , directory
-    , network
-    , bytestring
-    , binary
-    , async
-    , random
+  import:  common-dependencies
   main-is: Local.hs
 
 executable Server
-  default-language: Haskell2010
-  hs-source-dirs:   src
-  ghc-options: -Wall
-  other-modules:   
-    Core.MapReduceC
-    Core.Partition
-    Core.Util
-    Core.Serialize
-    Core.Context
-    Core.Type
-    Core.Std
-    Core.Store
-    Core.Logging
-    Impl
-  build-depends:
-      base            >=4.12  && <5
-    , text
-    , mtl
-    , containers
-    -- , lens
-    , hashable
-    , directory
-    , network
-    , bytestring
-    , binary
-    , async
-    , random
+  import:  common-dependencies
   main-is: Server.hs
 
 Test-Suite Test
@@ -152,4 +104,5 @@ Test-Suite Test
     , tasty-hunit
     , async
     , random
+    , hedis
   main-is: Test.hs

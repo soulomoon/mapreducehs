@@ -9,10 +9,12 @@
 module Main where
 
 import ImplServer
-import Core.Type (StoreType(LocalFileStore))
+import Core.Type (StoreType(LocalFileStore), Context)
 import Impl
-import Control.Monad (void)
+import Core.Context (IsContext (invalidContext, initialContext))
+import Core.Std (runCtx)
+
 
 
 main :: IO ()
-main = void $ runMapReduce @'LocalFileStore sample sampleReduce runServer
+main = runCtx (initialContext @Context) $ runMapReduce @'LocalFileStore sample sampleReduce runServer

@@ -16,6 +16,9 @@ import Test.QuickCheck.Monadic (monadicIO, assert, run)
 import Network.Socket (ServiceName)
 import Core.Logging
 import Core.Type
+import Core.Context (genContext, IsContext (initialContext))
+import Control.Monad.IO.Class (MonadIO(liftIO))
+import Core.Std (runCtx)
 
 newtype MapContextGen = MapContextGen  [[Context]]
 
@@ -23,7 +26,7 @@ instance Arbitrary MapContextGen where
   arbitrary = do 
     n <- choose (1, 10)
     mr :: MapReduce [Char] [Char] Char Int <- arbitrary
-    return $ MapContextGen (genContext n mr)
+    return $ MapContextGen (genContext @Context n $ pipeLineLength mr)
 
 -- mapperAdd1 :: Gen ((Char, Int) -> [(Char, Int)])
 -- mapperAdd1  = arbitrary
@@ -63,7 +66,7 @@ testServer runWorker port s1 mr = do
   begin <- newChan
   -- wait for the parent
   _ <- forkIO $ waitSignalWith begin $ runWorker port mr
-  sendSignalWith begin $ runMapReduceAndGetResult @'LocalFileStore s1 mr (runServerPort port)
+  sendSignalWith begin $ runCtx initialContext $ runMapReduceAndGetResult @'LocalFileStore s1 mr (runServerPort port)
 
 -- test single worker
 testServerProperty :: RunWorker -> MRdata -> MapReduce [Char] [Char] Char Int -> Property

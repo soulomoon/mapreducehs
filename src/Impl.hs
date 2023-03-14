@@ -16,13 +16,14 @@ import Data.List
 import Control.Concurrent (writeChan, writeList2Chan, getChanContents, newChan, killThread, forkFinally, readChan, newMVar)
 import Core.Store (MonadStore (cleanUp))
 import Core.Partition (sendDataToPartitions)
-import Core.Std (runCtx, sendResult, getResult)
+import Core.Std (sendResult, getResult)
 import Control.Monad.State
 import Data.Map (Map)
 import Core.Type 
 import Core.Serialize (Serializable2)
 import Core.Logging
 import System.Timeout (timeout)
+import Core.Context (invalidContext, MonadContext (setContext), genContext, IsContext (initialContext, finalContext))
 
 mapper :: (String, String) -> [(Char, Int)]
 mapper (_, v) = map (\xs -> (head xs, length xs)) $ group v
@@ -41,37 +42,27 @@ sampleReduce :: MapReduce [Char] [Char] Char Int
 sampleReduce = MrOut :> toM reducer :> toM mapperAdd1 :> toM mapper
 
 -- generate a list of context, each context is a task in the pipeline
-genContext :: Int -> MapReduce k1 v1 k3 v3 -> [[Context]]
-genContext nWorker mr =
-  let k = pipeLineLength mr in
-  [[Context nWorker tid "task" "tempdata" wid  | wid <- [0 .. nWorker-1] ] | tid <- [0 .. k-1]]
 
--- check if the task is valid
-validWork :: Context -> Bool
-validWork = (>= 0) . _taskIdL
-
-invalidContext :: Context
-invalidContext = Context (-1) (-1) "task" "tempdata" (-1)
 -- ignoring the error handling here, since chan is not likely to fail
 -- keep putting task to the out channel
 -- and read the result from the in channel
-sendTask :: ServerContext -> [[Context]] -> IO ()
+sendTask :: forall context m. (MonadContext context m, MonadIO m) => ServerContext context -> [[context]] -> m ()
 -- setting the server state to Stopped, then send invalid context to end the workers
 sendTask sc [] = do 
   -- sending invalid context to end the and set the server state to Stopped
-  writeChan (cOut sc) invalidContext  
+  liftIO $ writeChan (cOut sc) (invalidContext @context)
   -- read back from the channel to wait for the worker to end
-  void $ timeout (workerTimeout sc) $ readChan (cIn sc) 
+  liftIO $ void $ timeout (workerTimeout sc) $ readChan (cIn sc) 
 -- >> threadDelay 1000
 sendTask sc (x:xs) = do
   logg "putting to chan"
-  writeList2Chan (cOut sc) x
+  liftIO $ writeList2Chan (cOut sc) x
   logg "putting to chan done"
   -- take all of the send task back from the channel
   -- todo check them if matching
-  result <- take (length x) <$> getChanContents (cIn sc)
+  result <- take (length x) <$> liftIO (getChanContents (cIn sc))
   logg $ show result
-  sendTask sc xs
+  sendTask @context @m sc xs
 
 
 splitNum :: Int
@@ -82,27 +73,38 @@ myPort = "3000"
 
 newtype ContextState m = ContextState (StateT (Context, Map String String) IO m)
 
-runMapReduce :: forall (t::StoreType) k1 v1 k2 v2 . (Serializable2 k1 v1, Serializable2 k2 v2, MonadStore t (StateT Context IO)) => [(k1, v1)] -> MapReduce k1 v1 k2 v2 -> (ServerContext -> IO ()) -> IO ()
+runMapReduce :: forall (t::StoreType) ctx m k1 v1 k2 v2 . 
+  (Serializable2 k1 v1
+  , Serializable2 k2 v2
+  , MonadStore t ctx m) =>
+  [(k1, v1)]
+  -> MapReduce k1 v1 k2 v2
+  -> (ServerContext ctx -> IO ())
+  -> m ()
 runMapReduce s1 mr serverRun = do
   let len = pipeLineLength mr
-  logg $ "mr length: " ++ show len
-  sc <- ServerContext <$> newChan <*> newChan <*> newMVar Running <*> return 10000000
-  let cxt = genContext splitNum mr
-  -- send  data to the all possible partitions to initialize the test
-  runCtx (Context splitNum 0 "task" "tempdata" 0) $ cleanUp @t >> sendDataToPartitions @t s1
+  liftIO $ logg $ "mr length: " ++ show len
+  sc <- ServerContext <$> liftIO newChan <*> liftIO newChan <*> liftIO (newMVar Running) <*> return 10000000
+  let cxt = genContext @ctx splitNum len
+  -- send data to the all possible partitions to initialize the test
+  cleanUp @t @ctx >> sendDataToPartitions @t @ctx s1
   -- the server to send the task to the workers
-  tid <- forkFinally (serverRun sc) (const $ logg "server done")
-  -- tid <- forkIO (serverRun cIn cOut)
-  -- send all tasks
-  sendTask sc cxt
-  -- collect all the result
-  runCtx (Context splitNum len "task" "tempdata" 0) $ sendResult @t mr
-  -- async kill to release the resource
-  killThread tid
+  tid <- liftIO $ forkFinally (serverRun sc) (const $ logg "server done")
+  -- -- send all tasks
+  sendTask @ctx sc cxt 
+  -- -- collect all the result
+  setContext @ctx (finalContext len) >> sendResult @t mr
+  -- -- async kill to release the resource
+  liftIO $ killThread tid
 
-runMapReduceAndGetResult :: forall (t::StoreType) k1 v1 k2 v2 . (Serializable2 k1 v1, Serializable2 k2 v2, MonadStore t (StateT Context IO)) => [(k1, v1)] -> MapReduce k1 v1 k2 v2 -> (ServerContext -> IO ()) -> IO [(k2, v2)]
+runMapReduceAndGetResult :: forall (t::StoreType) ctx m k1 v1 k2 v2. 
+  (Serializable2 k1 v1, Serializable2 k2 v2, MonadStore t ctx m, MonadContext ctx m) 
+  => [(k1, v1)] 
+  -> MapReduce k1 v1 k2 v2 
+  -> (ServerContext ctx -> IO ()) 
+  -> m [(k2, v2)]
 runMapReduceAndGetResult s1 mr serverRun = do
-  let len = pipeLineLength mr
   runMapReduce @t s1 mr serverRun
-  runCtx (Context splitNum len "task" "tempdata" 0) $ getResult @t mr
+  -- todo runCtx (Context splitNum len "task" "tempdata" 0) $ 
+  getResult @t mr
 

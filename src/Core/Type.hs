@@ -12,14 +12,14 @@ data EvaluateType
 
 data WorkerType = VirtualWorker | ActualWorker
 
-data StoreType = MemoryStore | LocalFileStore
+data StoreType = MemoryStore | LocalFileStore | RedisStore
 
 data ServerState = Running | Stopped
 
-data ServerContext = ServerContext
+data ServerContext ctx = ServerContext 
   { 
-    cIn :: Chan Context,
-    cOut :: Chan Context,
+    cIn :: Chan ctx,
+    cOut :: Chan ctx,
     serverState :: MVar ServerState,
     workerTimeout :: Int
   }

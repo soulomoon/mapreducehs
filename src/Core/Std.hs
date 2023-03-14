@@ -21,36 +21,43 @@ import Core.Store (MonadStore)
 import Core.Type (StoreType)
 
 -- should increase id before send
-evalOne :: forall t m. (PartitionConstraint t m) => EvalPair -> m ()
-evalOne (EvalPair mr d) = incrTaskId @t >> sendDataToPartitions @t (mr d)
+evalOne :: forall t context m. (PartitionConstraint t context m) => EvalPair -> m ()
+evalOne (EvalPair mr d) = incrTaskId @context >> sendDataToPartitions @t (mr d)
 
-runCtx:: Monad m => context -> (StateT context m) a -> m a
+runCtx:: Monad m => context -> StateT context m a -> m a
 runCtx context =  (`evalStateT` context)
 
 -- collect result and send to a new partition
-sendResult :: forall (t :: StoreType) k1 v1 k3 v3 m. (Serializable2 k3 v3, MonadContext t m, MonadStore t m) => MapReduce k1 v1 k3 v3 -> m ()
+sendResult :: forall (t :: StoreType) context k1 v1 k3 v3 m. (Serializable2 k3 v3, MonadStore t context m) => MapReduce k1 v1 k3 v3 -> m ()
 sendResult _ = do
-    dd <- getAllDataTup @t @k3 @v3
+    dd <- getAllDataTup @t @context @k3 @v3
     liftIO $ print dd
-    incrTaskId @t
-    sendDataToPartition @t 0 dd
+    incrTaskId @context
+    sendDataToPartition @t @context 0 dd
 
-getResult :: forall (t :: StoreType) k1 v1 k3 v3 m. (Serializable2 k3 v3, MonadContext t m, MonadStore t m) => MapReduce k1 v1 k3 v3 -> m [(k3, v3)]
-getResult _ = getAllDataTup @t @k3 @v3
+getResult :: forall (t :: StoreType) context k1 v1 k3 v3 m. (Serializable2 k3 v3, MonadStore t context m) => MapReduce k1 v1 k3 v3 -> m [(k3, v3)]
+getResult _ = getAllDataTup @t @context @k3 @v3
 
-doTask :: forall t m k1 v1 k3 v3. (PartitionConstraint t m, Serializable2 k1 v1, Serializable2 k3 v3)  =>
+doTask :: forall t context m k1 v1 k3 v3. (PartitionConstraint t context m, Serializable2 k1 v1, Serializable2 k3 v3)  =>
   MapReduce k1 v1 k3 v3 -> m ()
 doTask mr = do
-      -- files <- findTaskFiles @t
-      tid <- taskId @t
-      ps <- indexMR tid mr $ getDataFromPartition @t
+      -- files <- findTaskFiles
+      tid <- taskId @context
+      ps <- indexMR tid mr $ getDataFromPartition @t 
       forM_ ps (evalOne @t)
 
 -- use do task
 runTask ::
-  forall (t :: StoreType) k1 v1 k3 v3 context.
-  (Serializable2 k1 v1, Serializable2 k3 v3, MonadStore t (StateT context IO)) =>
+  forall (t :: StoreType) context k1 v1 k3 v3.
+  (Serializable2 k1 v1, Serializable2 k3 v3, MonadStore t context (StateT context IO)) =>
   MapReduce k1 v1 k3 v3 ->
   context ->
   IO ()
-runTask mr ctx = runCtx ctx $ (doTask @t) mr
+runTask mr ctx = runCtx ctx $ (doTask @t @context) mr
+
+
+
+a :: (b -> c -> d) -> (a1 -> a2 -> a3 -> b) -> a1 -> a2 -> a3 -> c -> d
+a =  (.) . (.) . (.)
+-- a =  (.) . (.) . (.) . (.)
+-- c = (.) ~ (.)

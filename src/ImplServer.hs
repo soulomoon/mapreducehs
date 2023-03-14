@@ -4,6 +4,8 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 
 module ImplServer where
 
@@ -18,13 +20,14 @@ import Core.Type
 import Core.Logging
 import Control.Exception (try, SomeException, throw)
 import System.Timeout (timeout)
+import Core.Context (validWork, MonadContext, IsContext (invalidContext))
 
-runServer :: ServerContext -> IO ()
-runServer =  runServerPort myPort
+runServer :: forall context . (IsContext context) => ServerContext context -> IO ()
+runServer =  runServerPort @context myPort
 
 -- handle the exception here if not receiving the result
 -- handle the work through tcp network
-runServerPort :: ServiceName -> ServerContext -> IO ()
+runServerPort :: forall context . (IsContext context) => ServiceName -> ServerContext context -> IO ()
 runServerPort port sc = do
   runTCPServer Nothing port talk
   where
@@ -36,10 +39,10 @@ runServerPort port sc = do
       -- if the server is stopped, just return the invalid context
       context <- (case ss of 
         Running -> readChan (cOut sc)
-        Stopped -> return invalidContext)
+        Stopped -> return (invalidContext @context))
       -- first one receive the task, should
       -- set the state to stopped to inform other workers
-      putMVar (serverState sc) $ if validWork context then Running else Stopped
+      putMVar (serverState sc) $ if validWork @context context then Running else Stopped
       -- critical section done
 
       res <- try ( do

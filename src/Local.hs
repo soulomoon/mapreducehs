@@ -5,6 +5,7 @@
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE MonoLocalBinds #-}
 
 module Main where
 
@@ -17,14 +18,13 @@ import Core.Context
 import Control.Monad.State
 import Impl
 import Core.Std
-import Core.Store
-import Core.Type (StoreType(MemoryStore, LocalFileStore))
-import Core.MapReduceC (E(E), naiveEvaluator)
+import Core.MapReduceC (naiveEvaluator)
 import Core.Logging
 import Core.Type
 
 main :: IO ()
-main = void $ runMapReduce @'LocalFileStore sample sampleReduce  runLocalWorker
+main = void $ runMapReduce @'LocalFileStore sample sampleReduce runLocalWorker `execStateT` ctx
+  where ctx = Context 5 5 "task" "tempdata" 0
 
 sampleEval :: IO ()
 sampleEval = do
@@ -34,16 +34,17 @@ sampleEval = do
   return ()
 
 -- handle the work locally
-runLocalWorker :: ServerContext -> IO ()
+runLocalWorker :: ServerContext Context -> IO ()
 runLocalWorker sc = do
-  context <- readChan (cOut sc)
-  when (validWork context) $ 
-    runTask @'LocalFileStore sampleReduce context 
-    >> writeChan (cIn sc) context 
-    >> runLocalWorker sc
+  context <- liftIO $ readChan (cOut sc)
+  runCtx context ( 
+    when (validWork context) $ 
+      doTask @'LocalFileStore @Context sampleReduce 
+      >> liftIO (writeChan (cIn sc) context))
+      >> runLocalWorker sc
 
 -- sample worker
-runAllWorkers ::  ServerContext -> IO ()
+runAllWorkers ::  ServerContext Context -> IO ()
 runAllWorkers sc = do
   logg "starting workers"
   replicateM_ 5 $ forkIO $ runLocalWorker sc 
