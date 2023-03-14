@@ -13,7 +13,7 @@
 - [x] handle multiple workers
 - [x] exit gracefully informing the workers(now through invalid context)
 - [x] handle failure in workers
-- [] timeout if worker is taking too long
+- [x] timeout if worker is taking too long
 
 ### Worker
 
