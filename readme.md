@@ -6,6 +6,7 @@
 
 - [x] local evaluation process worked
 - [x] distributed evaluation process worked
+- [] use redis as store
 
 ### Server
 
