@@ -56,6 +56,13 @@ runTask ::
 runTask mr ctx = runCtx ctx $ (doTask @t @context) mr
 
 
+runTaskM ::
+  forall (t :: StoreType) m context k1 v1 k3 v3.
+  (Serializable2 k1 v1, Serializable2 k3 v3, MonadStore t context (StateT context m), Monad m) =>
+  MapReduce k1 v1 k3 v3 ->
+  context ->
+  m ()
+runTaskM mr ctx = runCtx ctx $ (doTask @t @context) mr
 
 a :: (b -> c -> d) -> (a1 -> a2 -> a3 -> b) -> a1 -> a2 -> a3 -> c -> d
 a =  (.) . (.) . (.)

@@ -4,12 +4,12 @@ module Main where
 
 import Test.HUnit (Test(..))
 
-import ImplWorker (runClientPort, runTaskLocal, runTaskLocalWithDrop, runClientPortParallel)
+import ImplWorker (runClientPort, runTaskLocalWithDrop, runClientPortParallel, runTaskLocal)
 import Test.Tasty
 import Test.Tasty.QuickCheck as QC
 import Test.Tasty.HUnit
 import Generator
-import Core.Type (StoreType(LocalFileStore))
+import Core.Type (StoreType(LocalFileStore), Context)
 
 foo :: Int -> (Int, Int)
 foo 3 = (1, 2)
@@ -39,10 +39,10 @@ test2 = TestCase $ do
 -- a = quickCheckWith stdArgs { maxSuccess = 5000 } 
 
 testSingleClient :: TestTree
-testSingleClient = testProperty "Server with single client" (testServerProperty (runClientPort @'LocalFileStore (runTaskLocal @'LocalFileStore)))
+testSingleClient = testProperty "Server with single client" (testServerProperty (runClientPort @'LocalFileStore (runTaskLocal @'LocalFileStore @Context @IO)))
 
 testMultipleClients :: TestTree
-testMultipleClients = testProperty "Server with multiple clients" (testServerProperty (runClientPortParallel @'LocalFileStore 5 (runTaskLocal @'LocalFileStore)))
+testMultipleClients = testProperty "Server with multiple clients" (testServerProperty (runClientPortParallel @'LocalFileStore 5 (runTaskLocal @'LocalFileStore @Context @IO)))
 
 testClientDrop :: TestTree
 testClientDrop = testProperty "Server with clients would drop" (testServerProperty ((runClientPortParallel @'LocalFileStore) 5 (runTaskLocalWithDrop @'LocalFileStore)))

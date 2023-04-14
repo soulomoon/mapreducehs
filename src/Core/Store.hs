@@ -10,6 +10,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FunctionalDependencies #-}
+{-# OPTIONS_GHC -Wno-orphans #-}
 
 module Core.Store where
 
@@ -26,11 +27,13 @@ import Data.Map (filterWithKey)
 import qualified Data.Set as Set
 import Data.Map (restrictKeys)
 import Core.Type (StoreType (LocalFileStore, MemoryStore, RedisStore), Context)
-import Database.Redis (RedisCtx, del, hscanOpts, cursor0, ScanOpts (ScanOpts, scanMatch, scanCount), hset, hget)
+import Database.Redis (RedisCtx, del, hscanOpts, cursor0, ScanOpts (ScanOpts, scanMatch, scanCount), hset, hget, checkedConnect, defaultConnectInfo, runRedis, MonadRedis (liftRedis))
 import Data.String (IsString(fromString))
 import Control.Monad.Identity (Identity (runIdentity))
 import qualified Data.ByteString.Char8 as B --to prevent name clash with Prelude
-import Data.Maybe (mapMaybe)
+--to prevent name clash with Prelude
+import Data.Maybe (mapMaybe, catMaybes)
+import Data.Either (lefts, rights)
 
 
 -- handles IO
@@ -96,25 +99,45 @@ instance (MonadContext (Context, Map String String) m, MonadIO m, MonadState (Ma
     return $ concatMap unSerialize content
 
 
-instance (Database.Redis.RedisCtx m Identity, MonadContext Context m, MonadIO m) => MonadStore 'RedisStore Context m where
+instance (MonadRedis m, MonadContext Context m, MonadIO m) => MonadStore 'RedisStore Context m where
   cleanUp = do 
     d <- dirName @Context
-    _ <- Database.Redis.del [B.pack d]
+    _ <- liftRedis $ Database.Redis.del [B.pack d]
     return ()
+
   findTaskFileWith pat = do
     dir <- fromString <$> dirName @Context
-    res <- Database.Redis.hscanOpts dir Database.Redis.cursor0 $ Database.Redis.ScanOpts (Just $ B.pack pat) (Just 1000)
-    return $ map (B.unpack. fst) $ snd $ runIdentity res
+    res <-liftRedis $ Database.Redis.hscanOpts dir Database.Redis.cursor0 ( Database.Redis.ScanOpts (Just $ B.pack pat) (Just 1000))
+    case res of
+            Left err -> error $ show err
+            Right (_, xs) -> return $ map (B.unpack . snd) xs
 
   writeToFile path s = do 
     d <- dirName @Context
-    _ <- Database.Redis.hset (B.pack d) (B.pack path) (B.pack s)
+    _ <- liftRedis $ Database.Redis.hset (B.pack d) (B.pack path) (B.pack s)
     return ()
 
   getDataFromFiles mFiles = do
     -- todo could get directly by patterns instead of getting all keys
     files <-map B.pack <$> mFiles
     d <- B.pack <$> dirName @Context
-    r <- mapMaybe runIdentity  <$> mapM (Database.Redis.hget d) files
-    let res = map (unSerialize . B.unpack) r
+    -- r <- mapMaybe runIdentity  <$> mapM (Database.Redis.hget d) files
+    r <- liftRedis $ mapM (Database.Redis.hget d) files
+    let res = map (unSerialize . B.unpack) (catMaybes $ rights r)
     return res
+
+instance {-# OVERLAPPABLE #-}
+  ( MonadTrans t
+  , MonadRedis m
+  , Monad (t m)
+  ) => MonadRedis (t m) where
+  liftRedis = lift . liftRedis
+
+
+-- set redis key
+go :: IO ()
+go = do 
+  conn <- checkedConnect defaultConnectInfo
+  x <- runRedis conn $ Database.Redis.hset (B.pack "space") (B.pack "test") (B.pack "ok")
+  print x
+  return ()

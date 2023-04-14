@@ -23,21 +23,20 @@ import Control.Monad.Cont
 import Core.Std 
 import Core.Type (StoreType(LocalFileStore))
 import Core.Logging
-import Control.Concurrent.Async (mapConcurrently_)
+import UnliftIO.Async (mapConcurrently_)
 import Control.Monad.State
 import System.Random (randomRIO)
-import Control.Exception
-import GHC.IO (catchException)
 import Control.Concurrent (threadDelay)
-import Core.Context(validWork, MonadContext)
+import Core.Context(validWork)
+import UnliftIO (MonadUnliftIO, Exception, catch, throwIO, bracket)
 
-type TaskHandler (t :: StoreType) context =  forall k1 v1 k3 v3 . (Serializable2 k1 v1, Serializable2 k3 v3, MonadStore t context (StateT context IO), Show context) => MapReduce k1 v1 k3 v3 -> context -> IO ()
+type TaskHandlerM (t :: StoreType) context m =  forall k1 v1 k3 v3 . (Serializable2 k1 v1, Serializable2 k3 v3, MonadStore t context (StateT context m), Show context) => MapReduce k1 v1 k3 v3 -> context -> m ()
 
 -- keep doing work
 runClient :: 
-  forall (t :: StoreType) context k1 v1 k3 v3 .
-  (MonadStore t context (StateT context IO), Show context) =>
-  (Serializable2 k1 v1, Serializable2 k3 v3) => TaskHandler t context-> MapReduce k1 v1 k3 v3 -> IO ()
+  forall (t :: StoreType) context m k1 v1 k3 v3 .
+  (MonadStore t context (StateT context m), Show context, Monad m, MonadIO m, MonadUnliftIO m) =>
+  (Serializable2 k1 v1, Serializable2 k3 v3) => TaskHandlerM t context m-> MapReduce k1 v1 k3 v3 -> m ()
 runClient doWork = runClientPort @t @context doWork myPort 
 
 
@@ -45,67 +44,68 @@ data DropException = DropException deriving (Show)
 instance Exception DropException
 
 runClientPort :: 
-  forall (t :: StoreType) context k1 v1 k3 v3 .
-  (MonadStore t context (StateT context IO), Show context) =>
-  (Serializable2 k1 v1, Serializable2 k3 v3) => TaskHandler t context->  ServiceName -> MapReduce k1 v1 k3 v3 -> IO ()
+  forall (t :: StoreType) context m k1 v1 k3 v3 .
+  (MonadStore t context (StateT context m), Show context, Monad m, MonadIO m, MonadUnliftIO m) =>
+  (Serializable2 k1 v1, Serializable2 k3 v3) => TaskHandlerM t context m->  ServiceName -> MapReduce k1 v1 k3 v3 -> m ()
 runClientPort doWork port mr = do
-  b <- catchException (runClientWork @t @context doWork port mr) 
+  b <- catch (runClientWork @t @context @m doWork port mr) 
     (\DropException -> logg "DropException" >> return True)
   when b $ runClientPort @t @context doWork port mr
 
 runClientPortParallel :: 
-  forall (t :: StoreType) context k1 v1 k3 v3 .
-  (MonadStore t context (StateT context IO), Show context) =>
-  (Serializable2 k1 v1, Serializable2 k3 v3) => Int -> TaskHandler t context ->  ServiceName -> MapReduce k1 v1 k3 v3 -> IO ()
+  forall (t :: StoreType) context m k1 v1 k3 v3 .
+  (MonadStore t context (StateT context m), Show context, MonadUnliftIO m, MonadUnliftIO m) =>
+  (Serializable2 k1 v1, Serializable2 k3 v3) => Int -> TaskHandlerM t context m ->  ServiceName -> MapReduce k1 v1 k3 v3 -> m ()
 runClientPortParallel n doWork  port mr = mapConcurrently_ (runClientPort @t @context doWork port) (replicate n mr)
 
 runTaskLocal :: 
-  forall (t :: StoreType) context.
-  (MonadStore t context (StateT context IO)) =>
-  TaskHandler t context
-runTaskLocal = runTask @t
+  forall (t :: StoreType) context m k1 v1 k3 v3.
+  (MonadStore t context (StateT context m), Serializable2 k1 v1, Serializable2 k3 v3, Monad m) =>
+  (MapReduce k1 v1 k3 v3 -> context -> m ())
+runTaskLocal = runTaskM @t @m @context
 
 runTaskLocalWithDrop :: 
-  forall (t :: StoreType) context.
-  (MonadStore t context (StateT context IO)) =>
-  TaskHandler t context
+  forall (t :: StoreType) context m.
+  (MonadStore t context (StateT context m), MonadIO m) =>
+  TaskHandlerM t context m
 runTaskLocalWithDrop m n = do
   i :: Int <- randomRIO (1,10)
   logg $ "dropping task" ++ show n
-  if i > 5 then logg "not dropping" >> runTask @t m n
-  else throw DropException
+  if i > 5 then logg "not dropping" >> runTaskM @t m n
+  else throwIO DropException
 
 runTaskLocalWithDelay :: 
-  forall (t :: StoreType) context.
-  (MonadStore t context (StateT context IO)) =>
-  Int -> TaskHandler t context
-runTaskLocalWithDelay dt m n = threadDelay dt >> (runTaskLocal @t @context) m n 
+  forall (t :: StoreType) context m.
+  (MonadStore t context (StateT context m), Monad m, MonadIO m) =>
+  Int -> TaskHandlerM t context m
+runTaskLocalWithDelay dt m n = liftIO (threadDelay dt) >> (runTaskLocal @t @context @m) m n 
 
 
 -- >>> 1 + 1
 runClientWork  :: 
-  forall (t :: StoreType) context k1 v1 k3 v3.
-  (Binary context, MonadStore t context (StateT context IO), Serializable2 k1 v1, Serializable2 k3 v3, Show context) =>
-  TaskHandler t context -> ServiceName -> MapReduce k1 v1 k3 v3 -> IO Bool
+  forall (t :: StoreType) context m k1 v1 k3 v3.
+  (Binary context, MonadStore t context (StateT context m), Serializable2 k1 v1, Serializable2 k3 v3, Show context, MonadIO m, MonadUnliftIO m) =>
+  TaskHandlerM t context m -> ServiceName -> MapReduce k1 v1 k3 v3 -> m Bool
 runClientWork runT port mr =
   runTCPClient "127.0.0.1" port $ \s -> do
   -- logg "getting"
-  msg <- recv s 10240
+  msg <- liftIO $ recv s 10240
   -- get the work
   let t = decode msg
-  print t
+  liftIO $ print t
   -- do the work for 1 second
   -- _ <- threadDelay 1000000
   if validWork @context t
-    then runT mr t >> sendAll s (encode t) >> return True
+    then runT mr t >> liftIO (sendAll s (encode t)) >> return True
     -- send back and end
-    else sendAll s (encode t) >> return False
+    else liftIO (sendAll s (encode t)) >> return False
 
 -- from the "network-run" package.
-runTCPClient :: HostName -> ServiceName -> (Socket -> IO a) -> IO a
-runTCPClient host port client = withSocketsDo $ do
-  addr <- resolve
-  E.bracket (open addr) close client
+-- windows need withSocketsDo
+runTCPClient :: (MonadIO m, MonadUnliftIO m) => HostName -> ServiceName -> (Socket -> m a) -> m a
+runTCPClient host port client = do
+  addr <- liftIO resolve
+  bracket (liftIO $ open addr) (liftIO . close) client
   where
     resolve = do
       let hints = defaultHints {addrSocketType = Stream}

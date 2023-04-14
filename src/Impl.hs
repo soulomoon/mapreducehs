@@ -71,10 +71,9 @@ splitNum = 5
 myPort :: String
 myPort = "3000"
 
-newtype ContextState m = ContextState (StateT (Context, Map String String) IO m)
-
 runMapReduce :: forall (t::StoreType) ctx m k1 v1 k2 v2 . 
-  (Serializable2 k1 v1
+  (
+    Serializable2 k1 v1
   , Serializable2 k2 v2
   , MonadStore t ctx m) =>
   [(k1, v1)]

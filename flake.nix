@@ -1,7 +1,9 @@
 {
   description = "mapreduce";
   inputs.flake-utils.url = "github:numtide/flake-utils";
-  inputs.nixpkgs.url = "github:NixOS/nixpkgs/cfa78cb43389635df0a9086cb31b74d3c3693935";
+  # inputs.nixpkgs.url = "github:NixOS/nixpkgs/cfa78cb43389635df0a9086cb31b74d3c3693935";
+  # use unstable
+  inputs.nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
   inputs.nixt = {
     url = "github:nix-community/nixt";
   };
@@ -11,10 +13,12 @@
     flake-utils.lib.eachSystem [ "aarch64-darwin" ] (system:
       # flake-utils.lib.eachDefaultSystem (system:
       let pkgs = nixpkgs.legacyPackages.${system}; 
-          compiler = pkgs.haskell.packages."9.2.5";
+          haskellPackages = pkgs.haskell.packages.ghc924;
+          # haskellPackages = pkgs.haskell.packages.ghc942;
+          # haskellPackages = pkgs.haskellPackages;
       in rec {
         packages = {
-          mapreduce = pkgs.haskellPackages.callCabal2nix "mapreduce" ./. { };
+          mapreduce = haskellPackages.callCabal2nix "mapreduce" ./. { };
         };
         apps = {
             local = {
@@ -32,8 +36,7 @@
           };
         packages.default = packages.mapreduce;
         devShells.default =
-          let haskellPackages = pkgs.haskellPackages;
-          in haskellPackages.shellFor {
+          haskellPackages.shellFor {
             packages = p: [ packages.mapreduce ];
             withHoogle = true;
             buildInputs = with haskellPackages; [
