@@ -39,92 +39,83 @@ import Data.Either (lefts, rights)
 -- handles IO
 class (MonadContext context m, MonadIO m) => MonadStore (t :: StoreType) context m | t -> context where
   cleanUp :: m ()
-  findAllTaskFiles :: m [String] -- | a lift of file names
-  findAllTaskFiles = do
+  allTaskDataPat :: m String
+  allTaskDataPat = do
     tId <- taskId @context
     -- suffix is the taskId
-    findTaskFileWith @t @context ("-" ++ show tId)
-  findTaskFiles :: m [String] -- | a lift of file names
-  findTaskFiles = do
+    return ("-" ++ show tId)
+  taskDataPat :: m String -- | a lift of file names
+  taskDataPat = do
     wId <- partitionId @context
     tId <- taskId @context
     -- partitionId(worker Id), taskId
     liftIO $ putStrLn $ "-" ++ show wId ++ "-" ++ show tId
-    findTaskFileWith @t @context ("-" ++ show wId ++ "-" ++ show tId)
-
+    return ("-" ++ show wId ++ "-" ++ show tId)
   -- sending path is current workerId, next workerId, taskId
-  mkFilePath :: (Show a, MonadContext context m) => a -> m String
-  mkFilePath pid = do
+  mkParPath :: (Show a, MonadContext context m) => a -> m String
+  mkParPath pid = do
     wId <- partitionId @context
     tId <- taskId @context
     dir <- dirName @context
     space <- spaceName @context
     return $ concat [dir, "/", space, "-", show wId, "-", show pid, "-", show tId]
 
-  findTaskFileWith :: String -> m [String]
-  writeToFile :: String -> String -> m ()
-  getDataFromFiles :: (Serializable2 k v) => m [String] -> m [(k, v)]
+  writeToPar :: String -> String -> m ()
+  getDataFromPat :: (Serializable2 k v) => m String -> m [(k, v)]
   -- getStringsFromFiles :: m [String] -> m [String]
 -- local file store
 instance (MonadContext Context m, MonadIO m) => MonadStore 'LocalFileStore Context m where
-  findTaskFileWith pat = do
-    dir <- dirName @Context
-    liftIO $ map ((dir ++ "/") ++) . filter (isSuffixOf pat) <$> listDirectory dir
-  writeToFile path s = liftIO $ withFile path WriteMode (`hPutStr` s)
-  getDataFromFiles mFiles = do
-    files <- mFiles
-    r <- liftIO (mapM readFile files)
-    liftIO $ print files
-    return $ concatMap unSerialize r
-
-  -- getStringsFromFiles mFiles = do
-  --   files <- mFiles
-  --   liftIO (mapM readFile files)
+  writeToPar path s = liftIO $ withFile path WriteMode (`hPutStr` s)
   cleanUp = do
     dir <- dirName @Context
     e <- liftIO $ doesDirectoryExist dir
-    if e then liftIO (removeDirectoryRecursive dir) else return ()
+    when e $ liftIO (removeDirectoryRecursive dir)
     liftIO $ createDirectory dir
     return ()
+  getDataFromPat patM = do
+    pat <- patM
+    dir <- dirName @Context
+    files <- liftIO $ map ((dir ++ "/") ++) . filter (isSuffixOf pat) <$> listDirectory dir
+    r <- liftIO (mapM readFile files)
+    liftIO $ print files
+    liftIO $ print r
+    return $ concatMap unSerialize r
+
 
 -- memory  store
 -- using map
 instance (MonadContext (Context, Map String String) m, MonadIO m, MonadState (Map String String) m) => MonadStore 'MemoryStore (Context, Map String String) m where
   cleanUp = modify (const mempty)
-  findTaskFileWith pat = gets (keys . filterWithKey (\k _ -> pat `isSuffixOf` k))
-  writeToFile p d = modify (insert p d)
-  getDataFromFiles mfiles = do
+  getDataFromPat patM = do
+    pat <- patM
+    files <- gets (keys . filterWithKey (\k _ -> pat `isSuffixOf` k)) 
     fs <- get
-    content <- restrictKeys fs . Set.fromList <$> mfiles
+    let content = (restrictKeys fs . Set.fromList) files
     return $ concatMap unSerialize content
+  writeToPar path s = liftIO $ withFile path WriteMode (`hPutStr` s)
 
 
 instance (MonadRedis m, MonadContext Context m, MonadIO m) => MonadStore 'RedisStore Context m where
-  cleanUp = do 
+  cleanUp = do
     d <- dirName @Context
     _ <- liftRedis $ Database.Redis.del [B.pack d]
     return ()
 
-  findTaskFileWith pat = do
-    dir <- fromString <$> dirName @Context
-    res <-liftRedis $ Database.Redis.hscanOpts dir Database.Redis.cursor0 ( Database.Redis.ScanOpts (Just $ B.pack pat) (Just 1000))
-    case res of
-            Left err -> error $ show err
-            Right (_, xs) -> return $ map (B.unpack . snd) xs
-
-  writeToFile path s = do 
+  writeToPar path s = do
     d <- dirName @Context
     _ <- liftRedis $ Database.Redis.hset (B.pack d) (B.pack path) (B.pack s)
     return ()
 
-  getDataFromFiles mFiles = do
-    -- todo could get directly by patterns instead of getting all keys
-    files <-map B.pack <$> mFiles
-    d <- B.pack <$> dirName @Context
-    -- r <- mapMaybe runIdentity  <$> mapM (Database.Redis.hget d) files
-    r <- liftRedis $ mapM (Database.Redis.hget d) files
-    let res = map (unSerialize . B.unpack) (catMaybes $ rights r)
-    return res
+  getDataFromPat patM = do
+    pat <- patM
+    dir <- fromString <$> dirName @Context
+    res <-liftRedis $ Database.Redis.hscanOpts dir Database.Redis.cursor0 ( Database.Redis.ScanOpts (Just $ B.pack ('*':pat)) (Just 1000))
+    case res of
+            -- todo handle error ?
+            Left err -> error $ show err
+            Right (_, xs) -> do
+              return $ concatMap (unSerialize . B.unpack . snd) xs
+
 
 instance {-# OVERLAPPABLE #-}
   ( MonadTrans t
@@ -133,11 +124,3 @@ instance {-# OVERLAPPABLE #-}
   ) => MonadRedis (t m) where
   liftRedis = lift . liftRedis
 
-
--- set redis key
-go :: IO ()
-go = do 
-  conn <- checkedConnect defaultConnectInfo
-  x <- runRedis conn $ Database.Redis.hset (B.pack "space") (B.pack "test") (B.pack "ok")
-  print x
-  return ()

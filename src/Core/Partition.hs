@@ -35,20 +35,20 @@ sendDataToPartition pid kvs = do
   -- i <- taskId
   -- wi <- workerId
   -- liftIO $ putStrLn $  "workId " ++ show wi ++ " task " ++ show i ++ ", partition "++ show k ++ ":" ++ show kvs
-  path <- mkFilePath @t @context pid
-  writeToFile @t @context path $ serialize kvs
+  path <- mkParPath @t @context pid
+  writeToPar @t @context path $ serialize kvs
 
 -- get only the data from the current partition
 getDataFromPartition :: forall t context k v m. (Serializable2 k v, MonadStore t context m) => m [(k, v)]
-getDataFromPartition = getDataFromFiles @t @context $ findTaskFiles @t @context
-
--- retrieve raw data
--- getAllData :: forall t m. (MonadStore t m) =>  m [String]
--- getAllData = getStringsFromFiles @t $ findAllTaskFiles @t
+getDataFromPartition = do
+  r <- getDataFromPat @t $ taskDataPat @t 
+  liftIO $ putStr "getDataFromPartition:"
+  liftIO $ print r
+  return r
 
 -- get data from files
 getAllDataTup :: forall t context k v m. (Serializable2 k v, MonadStore t context m) =>  m [(k, v)]
-getAllDataTup = getDataFromFiles @t @context (findAllTaskFiles @t @context)
+getAllDataTup = getDataFromPat @t (allTaskDataPat @t)
 
 divides :: forall (t :: StoreType) context k v m. (PartitionConstraint t context m, Serializable2 k v) => [(k, v)] -> m (Map Int [(k, v)])
 divides xs = do
@@ -59,6 +59,7 @@ divides xs = do
 -- send data to task
 sendDataToPartitions :: forall t context m k v. (PartitionConstraint t context m, Serializable2 k v) => [(k, v)] -> m ()
 sendDataToPartitions kvs = do
+  liftIO $ print ("sending: " <> serialize kvs)
   parts <- divides @t kvs
   _ <- traverseWithKey (sendDataToPartition @t @context) parts
   return ()
