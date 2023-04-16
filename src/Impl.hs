@@ -16,7 +16,7 @@ import Data.List
 import Control.Concurrent (writeChan, writeList2Chan, getChanContents, newChan, killThread, forkFinally, readChan, newMVar)
 import Core.Store (MonadStore (cleanUp))
 import Core.Partition (sendDataToPartitions)
-import Core.Std (sendResult, getResult)
+import Core.Std (sendResult, getResult, runCtx)
 import Control.Monad.State
 import Data.Map (Map)
 import Core.Type 
@@ -71,6 +71,9 @@ splitNum = 5
 myPort :: String
 myPort = "3000"
 
+-- | runMapReduce
+-- runMapReduce defines the whole process of running a map reduce for a server
+-- it first generate the context for the map reduce
 runMapReduce :: forall (t::StoreType) ctx m k1 v1 k2 v2 . 
   (
     Serializable2 k1 v1
@@ -78,7 +81,7 @@ runMapReduce :: forall (t::StoreType) ctx m k1 v1 k2 v2 .
   , MonadStore t ctx m) =>
   [(k1, v1)]
   -> MapReduce k1 v1 k2 v2
-  -> (ServerContext ctx -> IO ())
+  -> (ServerContext ctx -> IO ()) -- handle connection with workers
   -> m ()
 runMapReduce s1 mr serverRun = do
   let len = pipeLineLength mr
@@ -97,13 +100,16 @@ runMapReduce s1 mr serverRun = do
   liftIO $ killThread tid
 
 runMapReduceAndGetResult :: forall (t::StoreType) ctx m k1 v1 k2 v2. 
-  (Serializable2 k1 v1, Serializable2 k2 v2, MonadStore t ctx m, MonadContext ctx m) 
+  (Serializable2 k1 v1, Serializable2 k2 v2, MonadStore t ctx m) 
   => [(k1, v1)] 
   -> MapReduce k1 v1 k2 v2 
-  -> (ServerContext ctx -> IO ()) 
+  -> (ServerContext ctx -> IO ()) -- handle connection with workers
   -> m [(k2, v2)]
 runMapReduceAndGetResult s1 mr serverRun = do
   runMapReduce @t s1 mr serverRun
   -- todo runCtx (Context splitNum len "task" "tempdata" 0) $ 
   getResult @t mr
+
+
+    
 

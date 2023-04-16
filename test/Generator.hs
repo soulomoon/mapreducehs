@@ -4,13 +4,15 @@
 {-# OPTIONS_GHC -Wno-orphans #-}
 {-# LANGUAGE TypeApplications #-}
 {-# LANGUAGE DataKinds #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE FlexibleContexts #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
 module Generator where 
 import Core.MapReduceC
 import Test.QuickCheck.Arbitrary
 import Test.QuickCheck
 import Impl 
 import Control.Concurrent
-import ImplServer
 import Data.List (sort)
 import Test.QuickCheck.Monadic (monadicIO, assert, run)
 import Network.Socket (ServiceName)
@@ -19,6 +21,9 @@ import Core.Type
 import Core.Context (genContext, IsContext (initialContext))
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Core.Std (runCtx)
+import ImplServer (ServerRunner(runGetResult), runServerPort, runServerW)
+import Core.Store (MonadStore)
+import ImplWorker (runWorker, Worker, ClientType (Single, Multi), Arg, TaskRunnerType)
 
 newtype MapContextGen = MapContextGen  [[Context]]
 
@@ -61,19 +66,26 @@ instance Arbitrary MRdata where
         return $ MRdata [("", v)]
 
 type RunWorker = (ServiceName -> MapReduce [Char] [Char] Char Int -> IO ())
-testServer :: RunWorker -> ServiceName -> [([Char], [Char])] -> MapReduce [Char] [Char] Char Int -> IO [(Char, Int)]
-testServer runWorker port s1 mr = do
+
+testServer :: forall (t::StoreType) (c::ClientType) (r :: TaskRunnerType) ctx. (ServerRunner t ctx, Worker t c r, IsContext ctx) 
+  => Arg c -> [([Char], [Char])] -> MapReduce [Char] [Char] Char Int -> IO [(Char, Int)]
+testServer args dat mr = do
   begin <- newChan
   -- wait for the parent
-  _ <- forkIO $ waitSignalWith begin $ runWorker port mr
-  sendSignalWith begin $ runCtx initialContext $ runMapReduceAndGetResult @'LocalFileStore s1 mr (runServerPort port)
+  _ <- forkIO $ waitSignalWith begin $ runWorker @t @c @r mr args
+  sendSignalWith begin $ runGetResult @t @ctx dat mr 
 
--- test single worker
-testServerProperty :: RunWorker -> MRdata -> MapReduce [Char] [Char] Char Int -> Property
-testServerProperty runWorker (MRdata dat) mr = withMaxSuccess 15 $ monadicIO test
+class DefaultArg a where defaultArg :: Arg a
+instance DefaultArg 'Single where defaultArg = "3000"
+instance DefaultArg 'Multi where defaultArg = (5, "3000")
+
+testServerProperty :: forall (t::StoreType) (c::ClientType) (r :: TaskRunnerType) ctx.  (DefaultArg c, IsContext ctx, ServerRunner t ctx, Worker t c r) => MRdata -> MapReduce [Char] [Char] Char Int -> Property
+testServerProperty (MRdata dat) mr = withMaxSuccess 15 $ monadicIO test
     where test = do 
-            a <- run $ sort <$> testServer runWorker "3000" dat mr 
+            a <- run $ sort <$> testServer @t @c @r (defaultArg @c) dat mr
             b <- run $ sort <$> naiveEvaluator dat mr
+            run $ logg $ show a
+            run $ logg $ show b
             let res = b == a
             run $ logg $ show res
             assert res 

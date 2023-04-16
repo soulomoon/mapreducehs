@@ -39,7 +39,7 @@ instance (Ord k1) => ToM (Reducer k1 v1 v2) (MR k1 v1 k1 v2) where
       reduceWith :: Reducer k a b -> Map.Map k [a] -> Map.Map k [b]
       reduceWith = Map.mapWithKey
 
-data MapReduce k1 v1 k3 v3 where
+data  MapReduce k1 v1 k3 v3 where
   (:>) :: (Serializable2 k2 v2) => MapReduce k2 v2 k3 v3 -> MR k1 v1 k2 v2 -> MapReduce k1 v1 k3 v3
   MrOut :: (k1 ~ k3, v1 ~ v3) => MapReduce k1 v1 k3 v3
 

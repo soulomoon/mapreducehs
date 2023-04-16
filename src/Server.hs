@@ -7,29 +7,32 @@
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# OPTIONS_GHC -Wno-orphans #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE AllowAmbiguousTypes #-}
+{-# LANGUAGE FunctionalDependencies #-}
 
 module Main where
 
 import ImplServer
-import Core.Type (StoreType(LocalFileStore, RedisStore), Context)
+import Core.Type (StoreType(LocalFileStore, RedisStore), Context, ServerContext)
 import Impl
 import Core.Context (IsContext (invalidContext, initialContext))
-import Core.Std (runCtx)
+import Core.Std (runCtx, getResult)
 import Database.Redis (MonadRedis (liftRedis), unRedis, runRedis, checkedConnect, defaultConnectInfo)
 import Control.Monad.State (StateT)
 import Control.Monad.Reader (mapReaderT, ReaderT, MonadIO)
 import Control.Monad (void)
-
+import Core.Serialize
+import Core.MapReduceC
+import Core.Store (MonadStore)
 
 
 main :: IO ()
--- main = runCtx (initialContext @Context) $ runMapReduce @'LocalFileStore sample sampleReduce runServer
-main = do
-    conn <- checkedConnect defaultConnectInfo
-    void $ runRedis conn $ runCtx (initialContext @Context) $ runMapReduce @'RedisStore sample sampleReduce runServer
+main = runServer @'RedisStore sample sampleReduce 
 
--- instance MonadRedis Redis where
---     liftRedis = id
+
+
 
 
 

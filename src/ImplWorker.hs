@@ -7,6 +7,12 @@
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE InstanceSigs #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE UndecidableInstances #-}
+{-# LANGUAGE TypeFamilyDependencies #-}
 
 -- Echo client program
 module ImplWorker where
@@ -15,13 +21,13 @@ import qualified Control.Exception as E
 import Network.Socket
 import Network.Socket.ByteString.Lazy (recv, sendAll)
 import Data.Binary (decode, encode, Binary)
-import Core.MapReduceC 
+import Core.MapReduceC
 import Core.Serialize (Serializable2)
 import Impl
 import Core.Store
 import Control.Monad.Cont
-import Core.Std 
-import Core.Type (StoreType(LocalFileStore))
+import Core.Std
+import Core.Type (StoreType(LocalFileStore, RedisStore))
 import Core.Logging
 import UnliftIO.Async (mapConcurrently_)
 import Control.Monad.State
@@ -29,60 +35,81 @@ import System.Random (randomRIO)
 import Control.Concurrent (threadDelay)
 import Core.Context(validWork)
 import UnliftIO (MonadUnliftIO, Exception, catch, throwIO, bracket)
+import Database.Redis (checkedConnect, defaultConnectInfo, runRedis)
 
+
+data ClientType = Single | SingleDelay | Multi deriving (Show)
 type TaskHandlerM (t :: StoreType) context m =  forall k1 v1 k3 v3 . (Serializable2 k1 v1, Serializable2 k3 v3, MonadStore t context (StateT context m), Show context) => MapReduce k1 v1 k3 v3 -> context -> m ()
-
--- keep doing work
-runClient :: 
-  forall (t :: StoreType) context m k1 v1 k3 v3 .
-  (MonadStore t context (StateT context m), Show context, Monad m, MonadIO m, MonadUnliftIO m) =>
-  (Serializable2 k1 v1, Serializable2 k3 v3) => TaskHandlerM t context m-> MapReduce k1 v1 k3 v3 -> m ()
-runClient doWork = runClientPort @t @context doWork myPort 
-
-
 data DropException = DropException deriving (Show)
 instance Exception DropException
+-- type family Arg (c :: ClientType) :: *
+type family Arg (c :: ClientType) 
+type instance Arg 'Single = ServiceName
+type instance Arg 'Multi = (Int, ServiceName)
 
-runClientPort :: 
-  forall (t :: StoreType) context m k1 v1 k3 v3 .
-  (MonadStore t context (StateT context m), Show context, Monad m, MonadIO m, MonadUnliftIO m) =>
-  (Serializable2 k1 v1, Serializable2 k3 v3) => TaskHandlerM t context m->  ServiceName -> MapReduce k1 v1 k3 v3 -> m ()
-runClientPort doWork port mr = do
-  b <- catch (runClientWork @t @context @m doWork port mr) 
-    (\DropException -> logg "DropException" >> return True)
-  when b $ runClientPort @t @context doWork port mr
+class (Client t c, TaskRunner t r) => Worker (t :: StoreType) (c :: ClientType) (r :: TaskRunnerType) where
+  runWorker :: forall k1 v1 k3 v3 . (Serializable2 k1 v1, Serializable2 k3 v3) =>  MapReduce k1 v1 k3 v3 -> Arg c ->  IO ()
 
-runClientPortParallel :: 
-  forall (t :: StoreType) context m k1 v1 k3 v3 .
-  (MonadStore t context (StateT context m), Show context, MonadUnliftIO m, MonadUnliftIO m) =>
-  (Serializable2 k1 v1, Serializable2 k3 v3) => Int -> TaskHandlerM t context m ->  ServiceName -> MapReduce k1 v1 k3 v3 -> m ()
-runClientPortParallel n doWork  port mr = mapConcurrently_ (runClientPort @t @context doWork port) (replicate n mr)
+instance (Client 'LocalFileStore c, TaskRunner 'LocalFileStore r) => Worker 'LocalFileStore (c :: ClientType) (r :: TaskRunnerType) where
+    runWorker = runClient @'LocalFileStore @c (runTask @'LocalFileStore @r)
 
-runTaskLocal :: 
-  forall (t :: StoreType) context m k1 v1 k3 v3.
-  (MonadStore t context (StateT context m), Serializable2 k1 v1, Serializable2 k3 v3, Monad m) =>
-  (MapReduce k1 v1 k3 v3 -> context -> m ())
-runTaskLocal = runTaskM @t @m @context
+instance (Client 'RedisStore c, TaskRunner 'RedisStore r) => Worker 'RedisStore c r where
+    runWorker mr args = do
+        conn <- checkedConnect defaultConnectInfo
+        void $ runRedis conn $ runClient @'RedisStore @c (runTask @'RedisStore @r) mr args  
 
-runTaskLocalWithDrop :: 
-  forall (t :: StoreType) context m.
-  (MonadStore t context (StateT context m), MonadIO m) =>
-  TaskHandlerM t context m
-runTaskLocalWithDrop m n = do
-  i :: Int <- randomRIO (1,10)
-  logg $ "dropping task" ++ show n
-  if i > 5 then logg "not dropping" >> runTaskM @t m n
-  else throwIO DropException
+class Client (t :: StoreType) (c :: ClientType) where
+  runClient ::
+    forall context m k1 v1 k3 v3 .
+    (MonadStore t context (StateT context m), Show context, Monad m, MonadIO m, MonadUnliftIO m) =>
+    (Serializable2 k1 v1, Serializable2 k3 v3) => TaskHandlerM t context m->  MapReduce k1 v1 k3 v3 -> Arg c ->  m ()
 
-runTaskLocalWithDelay :: 
-  forall (t :: StoreType) context m.
-  (MonadStore t context (StateT context m), Monad m, MonadIO m) =>
-  Int -> TaskHandlerM t context m
-runTaskLocalWithDelay dt m n = liftIO (threadDelay dt) >> (runTaskLocal @t @context @m) m n 
+instance Client (t :: StoreType) 'Single where
+  runClient ::
+    forall context m k1 v1 k3 v3 .
+    (MonadStore t context (StateT context m), Show context, Monad m, MonadIO m, MonadUnliftIO m) =>
+    (Serializable2 k1 v1, Serializable2 k3 v3) => TaskHandlerM t context m->  MapReduce k1 v1 k3 v3 -> Arg 'Single ->  m ()
+  runClient doWork mr port = do
+    b <- catch (runClientWork @t @context @m doWork port mr)
+      (\DropException -> logg "DropException" >> return True)
+    when b $ runClient @t @'Single @context doWork mr port 
+
+instance Client (t :: StoreType) 'Multi where
+  runClient doWork mr (n, port) = mapConcurrently_ (flip (runClient @t @'Single doWork) port) (replicate n mr)
+
+data TaskRunnerType = Normal | Drop | Delay deriving (Show)
+class TaskRunner (t :: StoreType) (c :: TaskRunnerType) where
+  runTask :: forall context m k1 v1 k3 v3 . 
+    (MonadStore t context (StateT context m)
+    , Show context, Monad m, MonadIO m, MonadUnliftIO m
+    , Serializable2 k1 v1, Serializable2 k3 v3
+    ) 
+    => MapReduce k1 v1 k3 v3 -> context -> m ()
+
+instance TaskRunner (t :: StoreType) 'Normal where
+  runTask = runTaskM @t
+
+instance TaskRunner (t :: StoreType) 'Drop where
+  runTask m n = do
+    i :: Int <- randomRIO (1,10)
+    logg $ "dropping task" ++ show n
+    if i > 5 then logg "not dropping" >> runTaskM @t m n
+    else throwIO DropException
+
+instance TaskRunner (t :: StoreType) 'Delay where
+  -- runTask = runTaskLocalWithDelay @t 1000000
+  runTask mr ctx = liftIO (threadDelay 10000) >> (runTaskM @t) mr ctx
+
+-- runTaskLocalWithDelay ::
+--   forall (t :: StoreType) context m.
+--   (MonadStore t context (StateT context m), Monad m, MonadIO m) =>
+--   Int -> TaskHandlerM t context m
+-- runTaskLocalWithDelay dt m n = liftIO (threadDelay dt) >> (runTaskM @t) m n
+
 
 
 -- >>> 1 + 1
-runClientWork  :: 
+runClientWork  ::
   forall (t :: StoreType) context m k1 v1 k3 v3.
   (Binary context, MonadStore t context (StateT context m), Serializable2 k1 v1, Serializable2 k3 v3, Show context, MonadIO m, MonadUnliftIO m) =>
   TaskHandlerM t context m -> ServiceName -> MapReduce k1 v1 k3 v3 -> m Bool

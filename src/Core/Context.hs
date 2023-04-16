@@ -63,7 +63,7 @@ instance IsContext (Context, Map String String) where
   initialContext = (Context 5 0 "task" "tempdata" 0, empty)
   finalContext n = (Context 5 n "task" "tempdata" 0, empty)
 
-instance (Monad m, MonadState  (Context, Map String String) m, MonadIO m) => MonadContext (Context, Map String String) m where
+instance (Monad m, MonadState (Context, Map String String) m, MonadIO m) => MonadContext (Context, Map String String) m where
   workerCount = gets (_workerCountL . fst)
   partitionId = gets (_partitionIdL .fst)
   taskId = gets (_taskIdL. fst)

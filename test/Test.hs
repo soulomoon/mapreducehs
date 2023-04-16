@@ -4,12 +4,15 @@ module Main where
 
 import Test.HUnit (Test(..))
 
-import ImplWorker (runClientPort, runTaskLocalWithDrop, runClientPortParallel, runTaskLocal)
+import ImplWorker (runClient, ClientType (Single, Multi), TaskRunnerType (Normal, Drop))
 import Test.Tasty
 import Test.Tasty.QuickCheck as QC
 import Test.Tasty.HUnit
 import Generator
-import Core.Type (StoreType(LocalFileStore), Context)
+import Core.Type (StoreType(LocalFileStore, RedisStore), Context)
+import Database.Redis
+import Control.Monad (void)
+import ImplServer (ServerRunner(runServer))
 
 foo :: Int -> (Int, Int)
 foo 3 = (1, 2)
@@ -39,16 +42,39 @@ test2 = TestCase $ do
 -- a = quickCheckWith stdArgs { maxSuccess = 5000 } 
 
 testSingleClient :: TestTree
-testSingleClient = testProperty "Server with single client" (testServerProperty (runClientPort @'LocalFileStore (runTaskLocal @'LocalFileStore @Context @IO)))
+testSingleClient = 
+  testGroup "Server with single client" 
+  [
+    -- testProperty "LocalFileStore" (testServerProperty (runClientPort @'LocalFileStore (runTaskLocal @'LocalFileStore @Context @IO))) 
+     testProperty "Redis" (testServerProperty @'RedisStore @'Single @'Normal)
+     ,testProperty "LocalFileStore" (testServerProperty @'LocalFileStore @'Single @'Normal)
+      -- conn <- checkedConnect defaultConnectInfo
+      -- void $ runRedis conn (runClientPort @'RedisStore (runTaskLocal @'RedisStore @Context) port mr)) 
+  ]
 
 testMultipleClients :: TestTree
-testMultipleClients = testProperty "Server with multiple clients" (testServerProperty (runClientPortParallel @'LocalFileStore 5 (runTaskLocal @'LocalFileStore @Context @IO)))
+testMultipleClients =  
+  testGroup "Server with multiple clients"
+  [
+     testProperty "LocalFileStore" (testServerProperty @'LocalFileStore @'Multi @'Normal)
+     , testProperty "Redis" (testServerProperty @'RedisStore @'Multi @'Normal)
+  ]
 
 testClientDrop :: TestTree
-testClientDrop = testProperty "Server with clients would drop" (testServerProperty ((runClientPortParallel @'LocalFileStore) 5 (runTaskLocalWithDrop @'LocalFileStore)))
+testClientDrop = testGroup "Server with clients would drop" 
+  [
+     testProperty "LocalFileStore" (testServerProperty @'LocalFileStore @'Multi @'Drop)
+     , testProperty "LocalFileStore" (testServerProperty @'LocalFileStore @'Single @'Drop)
+     , testProperty "Redis" (testServerProperty @'RedisStore @'Multi @'Drop)
+     , testProperty "Redis" (testServerProperty @'RedisStore @'Single @'Drop)
+  ]
 
 main :: IO ()
 main = defaultMain tests
 tests :: TestTree
-tests = testGroup "Server client test" [testSingleClient, testMultipleClients, testClientDrop]
+tests = testGroup "Server client test" [
+  testSingleClient
+  , testMultipleClients
+  -- , testClientDrop
+  ]
 

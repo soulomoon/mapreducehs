@@ -103,7 +103,8 @@ instance (MonadRedis m, MonadContext Context m, MonadIO m) => MonadStore 'RedisS
 
   writeToPar path s = do
     d <- dirName @Context
-    _ <- liftRedis $ Database.Redis.hset (B.pack d) (B.pack path) (B.pack s)
+    s <- liftRedis $ Database.Redis.hset (B.pack d) (B.pack path) (B.pack s)
+    liftIO $ print s
     return ()
 
   getDataFromPat patM = do

@@ -5,6 +5,9 @@
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE DataKinds #-}
 {-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE KindSignatures #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE FunctionalDependencies #-}
 {-# LANGUAGE AllowAmbiguousTypes #-}
 
 module ImplServer where
@@ -20,10 +23,34 @@ import Core.Type
 import Core.Logging
 import Control.Exception (try, SomeException, throw)
 import System.Timeout (timeout)
-import Core.Context (validWork, MonadContext, IsContext (invalidContext))
+import Core.Context (validWork, IsContext (invalidContext, initialContext))
+import Core.Serialize
+import Core.MapReduceC
+import Core.Store (MonadStore)
+import Core.Std (getResult, runCtx)
+import Database.Redis (checkedConnect, defaultConnectInfo, runRedis)
 
-runServer :: forall context . (IsContext context) => ServerContext context -> IO ()
-runServer =  runServerPort @context myPort
+class ServerRunner (t::StoreType) ctx | t -> ctx where
+    runServer :: forall k1 v1 k2 v2 . (Serializable2 k1 v1, Serializable2 k2 v2) => [(k1,v1)] -> MapReduce k1 v1 k2 v2 ->  IO ()
+    runGetResult :: forall k1 v1 k2 v2 . (Serializable2 k1 v1, Serializable2 k2 v2) => [(k1,v1)] -> MapReduce k1 v1 k2 v2 ->  IO [(k2,v2)]
+
+
+instance ServerRunner 'LocalFileStore Context where    
+  -- run d mr serverRun = runMapReduceAndGetResult @'LocalFileStore d mr serverRun
+  runServer d mr = runCtx (initialContext @Context) $ runMapReduce @'LocalFileStore d mr runServerW
+  runGetResult d mr = runCtx (initialContext @Context) $ runMapReduceAndGetResult @'LocalFileStore d mr runServerW
+
+instance ServerRunner 'RedisStore Context where    
+  -- run d mr serverRun = runMapReduceAndGetResult @'LocalFileStore d mr serverRun
+  runServer d mr = do
+    conn <- checkedConnect defaultConnectInfo
+    void $ runRedis conn $ runCtx (initialContext @Context) $ runMapReduce @'RedisStore d mr runServerW
+  runGetResult d mr = do
+    conn <- checkedConnect defaultConnectInfo
+    runRedis conn $ runCtx (initialContext @Context) $ runMapReduceAndGetResult @'RedisStore d mr runServerW
+
+runServerW :: forall context . (IsContext context) => ServerContext context -> IO ()
+runServerW =  runServerPort @context myPort
 
 -- handle the exception here if not receiving the result
 -- handle the work through tcp network
