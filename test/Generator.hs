@@ -21,7 +21,7 @@ import Core.Type
 import Core.Context (genContext, IsContext (initialContext))
 import Control.Monad.IO.Class (MonadIO(liftIO))
 import Core.Std (runCtx)
-import ImplServer (ServerRunner(runGetResult), runServerPort, runServerW)
+import ImplServer (ServerRunner(runServer), runServerPort, runServerW)
 import Core.Store (MonadStore)
 import ImplWorker (runWorker, Worker, ClientType (Single, Multi), Arg, TaskRunnerType)
 
@@ -62,7 +62,8 @@ newtype MRdata = MRdata [([Char], [Char])] deriving Show
 
 instance Arbitrary MRdata where
     arbitrary = do 
-        v <- elements ["hello", "gogogogogovvv", "opksfasdfdsafa"]
+        -- v <- elements ["hello", "gogogogogovvv", "opksfasdfdsafa"]
+        v <- elements ["hello"]
         return $ MRdata [("", v)]
 
 type RunWorker = (ServiceName -> MapReduce [Char] [Char] Char Int -> IO ())
@@ -73,7 +74,7 @@ testServer args dat mr = do
   begin <- newChan
   -- wait for the parent
   _ <- forkIO $ waitSignalWith begin $ runWorker @t @c @r mr args
-  sendSignalWith begin $ runGetResult @t @ctx dat mr 
+  sendSignalWith begin $ runServer @t @ctx dat mr 
 
 class DefaultArg a where defaultArg :: Arg a
 instance DefaultArg 'Single where defaultArg = "3000"

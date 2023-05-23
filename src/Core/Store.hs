@@ -34,11 +34,12 @@ import qualified Data.ByteString.Char8 as B --to prevent name clash with Prelude
 --to prevent name clash with Prelude
 import Data.Maybe (mapMaybe, catMaybes)
 import Data.Either (lefts, rights)
+import Control.Monad.Reader (MonadReader (..), asks)
 
 
 -- handles IO
 class (MonadContext context m, MonadIO m) => MonadStore (t :: StoreType) context m | t -> context where
-  cleanUp :: m ()
+  cleanUp :: m a -> m a
   allTaskDataPat :: m String
   allTaskDataPat = do
     tId <- taskId @context
@@ -66,12 +67,12 @@ class (MonadContext context m, MonadIO m) => MonadStore (t :: StoreType) context
 -- local file store
 instance (MonadContext Context m, MonadIO m) => MonadStore 'LocalFileStore Context m where
   writeToPar path s = liftIO $ withFile path WriteMode (`hPutStr` s)
-  cleanUp = do
+  cleanUp f = do
     dir <- dirName @Context
     e <- liftIO $ doesDirectoryExist dir
     when e $ liftIO (removeDirectoryRecursive dir)
     liftIO $ createDirectory dir
-    return ()
+    f
   getDataFromPat patM = do
     pat <- patM
     dir <- dirName @Context
@@ -84,22 +85,22 @@ instance (MonadContext Context m, MonadIO m) => MonadStore 'LocalFileStore Conte
 
 -- memory  store
 -- using map
-instance (MonadContext (Context, Map String String) m, MonadIO m, MonadState (Map String String) m) => MonadStore 'MemoryStore (Context, Map String String) m where
-  cleanUp = modify (const mempty)
+instance (MonadContext (Context, Map String String) m, MonadIO m, MonadReader (Map String String) m) => MonadStore 'MemoryStore (Context, Map String String) m where
   getDataFromPat patM = do
     pat <- patM
-    files <- gets (keys . filterWithKey (\k _ -> pat `isSuffixOf` k)) 
-    fs <- get
+    files <- asks (keys . filterWithKey (\k _ -> pat `isSuffixOf` k))
+    fs <- ask
     let content = (restrictKeys fs . Set.fromList) files
     return $ concatMap unSerialize content
   writeToPar path s = liftIO $ withFile path WriteMode (`hPutStr` s)
+  cleanUp = local (const mempty)
 
 
 instance (MonadRedis m, MonadContext Context m, MonadIO m) => MonadStore 'RedisStore Context m where
-  cleanUp = do
+  cleanUp f = do
     d <- dirName @Context
     _ <- liftRedis $ Database.Redis.del [B.pack d]
-    return ()
+    f
 
   writeToPar path s = do
     d <- dirName @Context

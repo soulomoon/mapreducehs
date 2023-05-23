@@ -29,7 +29,7 @@ import Core.Store (MonadStore)
 
 
 main :: IO ()
-main = runServer @'RedisStore sample sampleReduce 
+main = void $ runServer @'RedisStore sample sampleReduce 
 
 
 

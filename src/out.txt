@@ -1,0 +1,50 @@
+• Couldn't match type ‘ctx’ with ‘Context’
+    arising from a functional dependency between constraints:
+      ‘MonadContext Context m’
+        arising from a use of ‘setContext’ at /Users/ares/src/mapreduce/src/Impl.hs:107:3-12
+      ‘MonadContext ctx m’
+        arising from the type signature for:
+                       runMapReduce :: forall (t :: StoreType) ctx (m :: * -> *) k1 v1 k2
+                                              v2.
+                                       (Serializable2 k1 v1, Serializable2 k2 v2,
+                                        MonadStore t ctx m, IsContext ctx, MonadState Context m) =>
+                                       [(k1, v1)]
+                                       -> MapReduce k1 v1 k2 v2
+                                       -> (ServerContext ctx -> IO ())
+                                       -> m () at /Users/ares/src/mapreduce/src/Impl.hs:(79,1)-(89,9)
+  ‘ctx’ is a rigid type variable bound by
+    the type signature for:
+      runMapReduce :: forall (t :: StoreType) ctx (m :: * -> *) k1 v1 k2
+                             v2.
+                      (Serializable2 k1 v1, Serializable2 k2 v2, MonadStore t ctx m,
+                       IsContext ctx, MonadState Context m) =>
+                      [(k1, v1)]
+                      -> MapReduce k1 v1 k2 v2 -> (ServerContext ctx -> IO ()) -> m ()
+    at /Users/ares/src/mapreduce/src/Impl.hs:(79,1)-(89,9)
+• In a stmt of a 'do' block: setContext newCtx
+  In the expression:
+    do let len = pipeLineLength mr
+       liftIO $ logg $ "mr length: " ++ show len
+       sc <- ServerContext <$> liftIO newChan <*> liftIO newChan
+               <*> liftIO (newMVar Running)
+               <*> return 10000000
+       sp <- spaceName
+       ....
+  In an equation for ‘runMapReduce’:
+      runMapReduce s1 mr serverRun
+        = do let len = ...
+             liftIO $ logg $ "mr length: " ++ show len
+             sc <- ServerContext <$> liftIO newChan <*> liftIO newChan
+                     <*> liftIO (newMVar Running)
+                     <*> return 10000000
+             ....
+• Relevant bindings include
+    cxt :: [[ctx]]
+      (bound at /Users/ares/src/mapreduce/src/Impl.hs:96:7)
+    sc :: ServerContext ctx
+      (bound at /Users/ares/src/mapreduce/src/Impl.hs:93:3)
+    serverRun :: ServerContext ctx -> IO ()
+      (bound at /Users/ares/src/mapreduce/src/Impl.hs:90:20)
+    runMapReduce :: [(k1, v1)]
+                    -> MapReduce k1 v1 k2 v2 -> (ServerContext ctx -> IO ()) -> m ()
+      (bound at /Users/ares/src/mapreduce/src/Impl.hs:90:1)

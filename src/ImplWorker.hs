@@ -27,19 +27,23 @@ import Impl
 import Core.Store
 import Control.Monad.Cont
 import Core.Std hiding (doTask)
-import Core.Type (StoreType(LocalFileStore, RedisStore))
+import Core.Type (StoreType(LocalFileStore, RedisStore), Context)
 import Core.Logging
 import UnliftIO.Async (mapConcurrently_)
 import Control.Monad.State
 import System.Random (randomRIO)
 import Control.Concurrent (threadDelay)
-import Core.Context(validWork)
+import Core.Context(validWork, initialContext, MonadContext (getContext, setContext))
 import UnliftIO (MonadUnliftIO, Exception, catch, throwIO, bracket)
 import Database.Redis (checkedConnect, defaultConnectInfo, runRedis)
+import Control.Monad.Reader (MonadReader)
+import Control.Monad.Trans.Reader (runReaderT)
+import Core.Std (doTask)
+import Core.Partition (PartitionConstraint)
 
 
 data ClientType = Single | SingleDelay | Multi deriving (Show)
-type TaskHandlerM (t :: StoreType) context m =  forall k1 v1 k3 v3 . (Serializable2 k1 v1, Serializable2 k3 v3, MonadStore t context (StateT context m), Show context) => MapReduce k1 v1 k3 v3 -> context -> m ()
+type TaskHandlerM (t :: StoreType) context m =  forall k1 v1 k3 v3 . (Serializable2 k1 v1, Serializable2 k3 v3, MonadStore t context m, Show context) => MapReduce k1 v1 k3 v3 -> m ()
 data DropException = DropException deriving (Show)
 instance Exception DropException
 -- type family Arg (c :: ClientType) :: *
@@ -50,13 +54,13 @@ type instance Arg 'Multi = (Int, ServiceName)
 -- Class Worker 
 -- specify the logic of how to run workers
 class (Client t c, TaskRunner t r) => Worker (t :: StoreType) (c :: ClientType) (r :: TaskRunnerType) where
-  runWorker :: forall k1 v1 k3 v3 . (Serializable2 k1 v1, Serializable2 k3 v3) =>  MapReduce k1 v1 k3 v3 -> Arg c ->  IO ()
+  runWorker :: forall k1 v1 k3 v3. (Serializable2 k1 v1, Serializable2 k3 v3) =>  MapReduce k1 v1 k3 v3 -> Arg c -> IO ()
 instance (Client 'LocalFileStore c, TaskRunner 'LocalFileStore r) => Worker 'LocalFileStore (c :: ClientType) (r :: TaskRunnerType) where
-    runWorker = runClient @'LocalFileStore @c (runTask @'LocalFileStore @r)
+    runWorker mr arg = (`runReaderT` (initialContext @Context)) $ runClient @'LocalFileStore @c (runTask @'LocalFileStore @r) mr arg
 instance (Client 'RedisStore c, TaskRunner 'RedisStore r) => Worker 'RedisStore c r where
     runWorker mr args = do
         conn <- checkedConnect defaultConnectInfo
-        void $ runRedis conn $ runClient @'RedisStore @c (runTask @'RedisStore @r) mr args  
+        void $ runRedis conn $ (`runReaderT` (initialContext @Context)) $ runClient @'RedisStore @c (runTask @'RedisStore @r) mr args  
 
 -- Class Client
 -- specify the logic of how to run clients,
@@ -64,7 +68,7 @@ instance (Client 'RedisStore c, TaskRunner 'RedisStore r) => Worker 'RedisStore 
 class Client (t :: StoreType) (c :: ClientType) where
   runClient ::
     forall context m k1 v1 k3 v3 .
-    (MonadStore t context (StateT context m), Show context, Monad m, MonadIO m, MonadUnliftIO m) =>
+    (MonadStore t context m, Show context, Monad m, MonadIO m, MonadUnliftIO m) =>
     (Serializable2 k1 v1, Serializable2 k3 v3) => TaskHandlerM t context m->  MapReduce k1 v1 k3 v3 -> Arg c ->  m ()
 instance Client (t :: StoreType) 'Single where
   runClient doTask mr port = do
@@ -79,28 +83,29 @@ instance Client (t :: StoreType) 'Multi where
 data TaskRunnerType = Normal | Drop | Delay deriving (Show)
 class TaskRunner (t :: StoreType) (c :: TaskRunnerType) where
   runTask :: forall context m k1 v1 k3 v3 . 
-    (MonadStore t context (StateT context m)
-    , Show context, Monad m, MonadIO m, MonadUnliftIO m
+    (PartitionConstraint t context m
+    , MonadContext context m
+    , Show context, Monad m, MonadUnliftIO m
     , Serializable2 k1 v1, Serializable2 k3 v3
     ) 
-    => MapReduce k1 v1 k3 v3 -> context -> m ()
+    => MapReduce k1 v1 k3 v3 -> m ()
 
 instance TaskRunner (t :: StoreType) 'Normal where
-  runTask = runTaskM @t
+  runTask = doTask @t 
 instance TaskRunner (t :: StoreType) 'Drop where
-  runTask m n = do
+  runTask m = do
     i :: Int <- randomRIO (1,10)
-    logg $ "dropping task" ++ show n
-    if i > 5 then logg "not dropping" >> runTaskM @t m n
+    logg "dropping task" 
+    if i > 5 then logg "not dropping" >> doTask @t m
     else throwIO DropException
 instance TaskRunner (t :: StoreType) 'Delay where
   -- runTask = runTaskLocalWithDelay @t 1000000
-  runTask mr ctx = liftIO (threadDelay 10000) >> (runTaskM @t) mr ctx
+  runTask mr = liftIO (threadDelay 10000) >> (doTask @t) mr 
 
 -- >>> 1 + 1
 runClientWork  ::
   forall (t :: StoreType) context m k1 v1 k3 v3.
-  (Binary context, MonadStore t context (StateT context m), Serializable2 k1 v1, Serializable2 k3 v3, Show context, MonadIO m, MonadUnliftIO m) =>
+  (Binary context, MonadStore t context m, Serializable2 k1 v1, Serializable2 k3 v3, Show context, MonadIO m, MonadUnliftIO m) =>
   TaskHandlerM t context m -> ServiceName -> MapReduce k1 v1 k3 v3 -> m Bool
 runClientWork runT port mr =
   runTCPClient "127.0.0.1" port $ \s -> do
@@ -108,14 +113,15 @@ runClientWork runT port mr =
   msg <- liftIO $ recv s 10240
   -- get the work
   let t = decode msg
-  liftIO $ print t
-  -- do the work for 1 second
-  -- _ <- threadDelay 1000000
-  if validWork @context t
-    -- run the state here
-    then runT mr t >> liftIO (sendAll s (encode t)) >> return True
-    -- send back and end
-    else liftIO (sendAll s (encode t)) >> return False
+  setContext t $ do
+    liftIO $ print t
+    -- do the work for 1 second
+    -- _ <- threadDelay 1000000
+    if validWork @context t
+      -- run the state here
+      then runT mr >> liftIO (sendAll s (encode t)) >> return True
+      -- send back and end
+      else liftIO (sendAll s (encode t)) >> return False
 
 -- from the "network-run" package.
 -- windows need withSocketsDo

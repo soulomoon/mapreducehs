@@ -31,23 +31,18 @@ import Core.Std (getResult, runCtx)
 import Database.Redis (checkedConnect, defaultConnectInfo, runRedis)
 
 class ServerRunner (t::StoreType) ctx | t -> ctx where
-    runServer :: forall k1 v1 k2 v2 . (Serializable2 k1 v1, Serializable2 k2 v2) => [(k1,v1)] -> MapReduce k1 v1 k2 v2 ->  IO ()
-    runGetResult :: forall k1 v1 k2 v2 . (Serializable2 k1 v1, Serializable2 k2 v2) => [(k1,v1)] -> MapReduce k1 v1 k2 v2 ->  IO [(k2,v2)]
+    runServer :: forall k1 v1 k2 v2 . (Serializable2 k1 v1, Serializable2 k2 v2) => [(k1,v1)] -> MapReduce k1 v1 k2 v2 ->  IO [(k2,v2)]
 
 
 instance ServerRunner 'LocalFileStore Context where    
   -- run d mr serverRun = runMapReduceAndGetResult @'LocalFileStore d mr serverRun
   runServer d mr = runCtx (initialContext @Context) $ runMapReduce @'LocalFileStore d mr runServerW
-  runGetResult d mr = runCtx (initialContext @Context) $ runMapReduceAndGetResult @'LocalFileStore d mr runServerW
 
 instance ServerRunner 'RedisStore Context where    
   -- run d mr serverRun = runMapReduceAndGetResult @'LocalFileStore d mr serverRun
   runServer d mr = do
     conn <- checkedConnect defaultConnectInfo
-    void $ runRedis conn $ runCtx (initialContext @Context) $ runMapReduce @'RedisStore d mr runServerW
-  runGetResult d mr = do
-    conn <- checkedConnect defaultConnectInfo
-    runRedis conn $ runCtx (initialContext @Context) $ runMapReduceAndGetResult @'RedisStore d mr runServerW
+    runRedis conn $ runCtx (initialContext @Context) $ runMapReduce @'RedisStore d mr runServerW
 
 runServerW :: forall context . (IsContext context) => ServerContext context -> IO ()
 runServerW =  runServerPort @context myPort

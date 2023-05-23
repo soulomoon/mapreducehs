@@ -24,6 +24,7 @@ import Core.Serialize (Serializable2)
 import Core.Logging
 import System.Timeout (timeout)
 import Core.Context (invalidContext, MonadContext (setContext), genContext, IsContext (initialContext, finalContext))
+import Control.Monad.Reader (MonadReader)
 
 mapper :: (String, String) -> [(Char, Int)]
 mapper (_, v) = map (\xs -> (head xs, length xs)) $ group v
@@ -78,37 +79,42 @@ runMapReduce :: forall (t::StoreType) ctx m k1 v1 k2 v2 .
   (
     Serializable2 k1 v1
   , Serializable2 k2 v2
-  , MonadStore t ctx m) =>
+  , MonadStore t ctx m 
+  , IsContext ctx) =>
   [(k1, v1)]
   -> MapReduce k1 v1 k2 v2
   -> (ServerContext ctx -> IO ()) -- handle connection with workers
-  -> m ()
+  -> m [(k2,v2)]
 runMapReduce s1 mr serverRun = do
   let len = pipeLineLength mr
   liftIO $ logg $ "mr length: " ++ show len
   sc <- ServerContext <$> liftIO newChan <*> liftIO newChan <*> liftIO (newMVar Running) <*> return 10000000
   let cxt = genContext @ctx splitNum len
   -- send data to the all possible partitions to initialize the test
-  cleanUp @t @ctx >> sendDataToPartitions @t @ctx s1
-  -- the server to send the task to the workers
-  tid <- liftIO $ forkFinally (serverRun sc) (const $ logg "server done")
-  -- -- send all tasks
-  sendTask @ctx sc cxt 
-  -- -- collect all the result
-  setContext @ctx (finalContext len) >> sendResult @t mr
-  -- -- async kill to release the resource
-  liftIO $ killThread tid
+  cleanUp @t @ctx 
+    $ (do 
+        sendDataToPartitions @t @ctx s1
+        -- the server to send the task to the workers
+        tid <- liftIO $ forkFinally (serverRun sc) (const $ logg "server done")
+        -- -- send all tasks
+        sendTask sc cxt 
+        -- -- collect all the result
+        setContext @ctx (finalContext len) (sendResult @t mr <* liftIO (killThread tid)))
 
-runMapReduceAndGetResult :: forall (t::StoreType) ctx m k1 v1 k2 v2. 
-  (Serializable2 k1 v1, Serializable2 k2 v2, MonadStore t ctx m) 
-  => [(k1, v1)] 
-  -> MapReduce k1 v1 k2 v2 
-  -> (ServerContext ctx -> IO ()) -- handle connection with workers
-  -> m [(k2, v2)]
-runMapReduceAndGetResult s1 mr serverRun = do
-  runMapReduce @t s1 mr serverRun
-  -- todo runCtx (Context splitNum len "task" "tempdata" 0) $ 
-  getResult @t mr
+-- runMapReduceAndGetResult :: forall (t::StoreType) ctx m k1 v1 k2 v2. 
+--   (Serializable2 k1 v1, Serializable2 k2 v2, MonadStore t ctx m) 
+--   => [(k1, v1)] 
+--   -> MapReduce k1 v1 k2 v2 
+--   -> (ServerContext ctx -> IO ()) -- handle connection with workers
+--   -> m [(k2, v2)]
+-- runMapReduceAndGetResult s1 mr serverRun = do
+--   runMapReduce @t s1 mr serverRun
+--   -- todo runCtx (Context splitNum len "task" "tempdata" 0) $ 
+--   logg "getting result"
+--   x <- getResult @t mr
+--   logg $ show x
+--   logg "getting result done"
+--   return x
 
 
     
