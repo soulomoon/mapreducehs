@@ -25,6 +25,7 @@ import Core.Logging
 import System.Timeout (timeout)
 import Core.Context (invalidContext, MonadContext (setContext), genContext, IsContext (initialContext, finalContext))
 import Control.Monad.Reader (MonadReader)
+import UnliftIO (MonadUnliftIO (withRunInIO))
 
 mapper :: (String, String) -> [(Char, Int)]
 mapper (_, v) = map (\xs -> (head xs, length xs)) $ group v
@@ -80,10 +81,11 @@ runMapReduce :: forall (t::StoreType) ctx m k1 v1 k2 v2 .
     Serializable2 k1 v1
   , Serializable2 k2 v2
   , MonadStore t ctx m 
+  , MonadUnliftIO m
   , IsContext ctx) =>
   [(k1, v1)]
   -> MapReduce k1 v1 k2 v2
-  -> (ServerContext ctx -> IO ()) -- handle connection with workers
+  -> (ServerContext ctx -> m ()) -- handle connection with workers
   -> m [(k2,v2)]
 runMapReduce s1 mr serverRun = do
   let len = pipeLineLength mr
@@ -95,7 +97,7 @@ runMapReduce s1 mr serverRun = do
     $ (do 
         sendDataToPartitions @t @ctx s1
         -- the server to send the task to the workers
-        tid <- liftIO $ forkFinally (serverRun sc) (const $ logg "server done")
+        tid <- withRunInIO (\run -> forkFinally (run $ serverRun sc) (const $ logg "server done"))
         -- -- send all tasks
         sendTask sc cxt 
         -- -- collect all the result

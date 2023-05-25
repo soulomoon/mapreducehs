@@ -85,7 +85,7 @@ class TaskRunner (t :: StoreType) (c :: TaskRunnerType) where
   runTask :: forall context m k1 v1 k3 v3 . 
     (PartitionConstraint t context m
     , MonadContext context m
-    , Show context, Monad m, MonadUnliftIO m
+    , Show context
     , Serializable2 k1 v1, Serializable2 k3 v3
     ) 
     => MapReduce k1 v1 k3 v3 -> m ()
