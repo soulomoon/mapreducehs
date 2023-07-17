@@ -68,7 +68,7 @@ instance (Client 'RedisStore c, TaskRunner 'RedisStore r) => Worker 'RedisStore 
 class Client (t :: StoreType) (c :: ClientType) where
   runClient ::
     forall context m k1 v1 k3 v3 .
-    (MonadStore t context m, Show context, Monad m, MonadIO m, MonadUnliftIO m) =>
+    (MonadStore t context m, MonadUnliftIO m) =>
     (Serializable2 k1 v1, Serializable2 k3 v3) => TaskHandlerM t context m->  MapReduce k1 v1 k3 v3 -> Arg c ->  m ()
 instance Client (t :: StoreType) 'Single where
   runClient doTask mr port = do
@@ -82,13 +82,7 @@ instance Client (t :: StoreType) 'Multi where
 -- specify how to run a single task
 data TaskRunnerType = Normal | Drop | Delay deriving (Show)
 class TaskRunner (t :: StoreType) (c :: TaskRunnerType) where
-  runTask :: forall context m k1 v1 k3 v3 . 
-    (PartitionConstraint t context m
-    , MonadContext context m
-    , Show context
-    , Serializable2 k1 v1, Serializable2 k3 v3
-    ) 
-    => MapReduce k1 v1 k3 v3 -> m ()
+  runTask :: TaskHandlerM t context m
 
 instance TaskRunner (t :: StoreType) 'Normal where
   runTask = doTask @t 
