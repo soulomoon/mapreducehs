@@ -46,10 +46,9 @@ data ClientType = Single | SingleDelay | Multi deriving (Show)
 type TaskHandlerM (t :: StoreType) context m =  forall k1 v1 k3 v3 . (Serializable2 k1 v1, Serializable2 k3 v3, MonadStore t context m, Show context) => MapReduce k1 v1 k3 v3 -> m ()
 data DropException = DropException deriving (Show)
 instance Exception DropException
--- type family Arg (c :: ClientType) :: *
-type family Arg (c :: ClientType) 
-type instance Arg 'Single = ServiceName
-type instance Arg 'Multi = (Int, ServiceName)
+type family Arg (c :: ClientType) = r | r -> c where
+  Arg 'Single = ServiceName
+  Arg 'Multi = (Int, ServiceName)
 
 -- Class Worker 
 -- specify the logic of how to run workers
@@ -74,9 +73,9 @@ instance Client (t :: StoreType) 'Single where
   runClient doTask mr port = do
     b <- catch (runClientWork @t doTask port mr)
       (\DropException -> logg "DropException" >> return True)
-    when b $ runClient @t @'Single doTask mr port 
+    when b $ runClient @t doTask mr port 
 instance Client (t :: StoreType) 'Multi where
-  runClient doWork mr (n, port) = mapConcurrently_ (flip (runClient @t @'Single doWork) port) (replicate n mr)
+  runClient doWork mr (n, port) = mapConcurrently_ (flip (runClient @t doWork) port) (replicate n mr)
 
 -- Class TaskRunner
 -- specify how to run a single task
